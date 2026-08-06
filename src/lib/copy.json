@@ -1,0 +1,125 @@
+{
+  "shared": {
+    "bottomNav": {
+      "home": "בית",
+      "orders": "הזמנות",
+      "notifications": "התראות",
+      "profile": "פרופיל"
+    },
+    "appMeta": {
+      "title": "DoorHub",
+      "description": "הזמנת בעלי מקצוע לשירותי בית"
+    }
+  },
+  "jobStatus": {
+    "draft": "טיוטה",
+    "searchingProfessional": "מחפש בעל מקצוע",
+    "pendingApproval": "ממתין לאישור",
+    "confirmed": "מאושר",
+    "onTheWay": "בדרך אלייך",
+    "arrived": "הגיע",
+    "inProgress": "בביצוע",
+    "completed": "הושלם",
+    "cancelled": "בוטל",
+    "rescheduled": "נקבע מועד חדש",
+    "waitingForCustomer": "ממתין ללקוח",
+    "waitingForProfessional": "ממתין לבעל מקצוע",
+    "incompleteWork": "עבודה לא הושלמה"
+  },
+  "notification": {
+    "customer": {
+      "professionalAssigned": "נמצא בעל מקצוע להזמנה שלך",
+      "preArrivalReminder": "בעל המקצוע צפוי לצאת אליך בעוד כשעה וחצי",
+      "professionalOnTheWay": "בעל המקצוע בדרך אליך",
+      "delayUnder30": "בעל המקצוע מתעכב בכ־X דקות",
+      "delayOver30": {
+        "message": "בעל המקצוע מתעכב בכ־X דקות מעבר לטווח שנקבע. האם זה מתאים לך?",
+        "optionApprove": "כן, מאשר",
+        "optionReject": "לא, לא מתאים",
+        "supportingNote": "אם לא תאשר תוך 15 דקות ההזמנה תתבטל"
+      },
+      "arrival": "בעל המקצוע הגיע ליעד",
+      "jobSummary": "העבודה הושלמה – סיכום מוכן לצפייה",
+      "rescheduledJob": "נקבע מועד חדש להשלמת העבודה",
+      "jobCancelled": "העבודה בוטלה",
+      "systemInfo": {
+        "missingProfileDetails": "חסרים פרטים בפרופיל",
+        "temporaryError": "אירעה תקלה זמנית במערכת",
+        "detailsUpdated": "הפרטים עודכנו בהצלחה"
+      },
+      "now": {
+        "requestSent": "הבקשה הדחופה שלך נשלחה לבעלי מקצוע באזור. תוך רבע שעה נדע אם נמצא בעל מקצוע שיגיע אליך עד שעה מעכשיו",
+        "searchCheckpoint": "עדיין מחפשים בעל מקצוע זמין",
+        "searchExpired": {
+          "message": "לא מצאנו בעל מקצוע זמין כרגע",
+          "optionRetry": "נסה שוב",
+          "optionSchedule": "קבע למועד אחר"
+        }
+      }
+    },
+    "professional": {
+      "reminderToStart": "הגיע הזמן לצאת לדרך להזמנה הקרובה",
+      "didNotStartOnTime": "טרם יצאת לדרך להזמנה הקרובה",
+      "delayPendingApproval": "ממתין לאישור הלקוח לעיכוב",
+      "reminderToMarkArrival": "נא לעדכן הגעה ליעד",
+      "reminderToSendSummary": "נא לשלוח סיכום עבודה",
+      "commissionPaymentRequired": "יש להשלים תשלום עמלה כדי להמשיך",
+      "systemInfo": {
+        "missingProfileDetails": "חסרים פרטים בפרופיל",
+        "updateAccountDetails": "יש לעדכן פרטי חשבון",
+        "temporaryError": "אירעה תקלה זמנית"
+      }
+    }
+  },
+  "homeScreen": {
+    "searchBar": {
+      "placeholder": "איזו תקלה יש לך בבית היום?",
+      "searchButtonAriaLabel": "חיפוש"
+    },
+    "timePills": {
+      "urgentNow": "דחוף עכשיו",
+      "scheduleLater": "לקבוע למועד אחר"
+    },
+    "popularServices": {
+      "heading": "בחר עבודה נפוצה",
+      "showMore": "הצג עוד עבודות",
+      "showLess": "הצג פחות"
+    },
+    "activeJobCard": {
+      "dateToday": "היום",
+      "dateFormat": "יום {dayLetter}, {dd}.{mm}",
+      "dayLetters": ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"]
+    }
+  },
+  "bookingFlow": {
+    "closeAriaLabel": "סגור",
+    "previous": "הקודם",
+    "searchMatch": {
+      "understoodHeading": "נראה שהבנו את הבעיה",
+      "youWrote": "כתבת: '{query}'",
+      "matchingProfessionLabel": "המקצוע המתאים:",
+      "chooseServiceHeading": "בחר את השירות המתאים ביותר לדעתך",
+      "noMatchOption": "אין התאמה",
+      "priceRange": "טווח מחיר עבור עבודה זו: {min}–{max} ₪",
+      "priceAfterInspection": "טווח מחיר עבור עבודה זו: מחיר לאחר אבחון",
+      "next": "הבא",
+      "nextStepComingSoon": "השלב הבא בזרימה יתווסף מיד אחרי מסך ה-Figma הבא"
+    },
+    "scheduling": {
+      "heading": "בחר מועד הגעה",
+      "subheading": "בששת הימים הקרובים, לא כולל ימי שבת",
+      "timeHeading": "בחירת שעה",
+      "next": "הבא"
+    },
+    "noMatch": {
+      "heading": "אין לנו כרגע בעלי מקצוע בתחום זה",
+      "subtext": "נשמח לעזור לך בתחומים שבהם יש לנו אנשי מקצוע זמינים",
+      "backHome": "חזרה לדף הבית"
+    },
+    "noPriceYet": {
+      "heading": "עדיין לא מוגדר עבור שירות זה טווח מחיר במערכת.",
+      "subtext": "נוכל למצוא עבורך איש מקצוע בקטגוריה זו, אך הערכת המחיר תינתן לאחר הגעתו.",
+      "continueOrder": "המשך לביצוע ההזמנה"
+    }
+  }
+}

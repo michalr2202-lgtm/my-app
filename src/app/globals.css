@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Design tokens extracted from Figma (Home Service UI Kit / DoorHub).
+ * Source of truth: Figma variables (get_variable_defs) for the Client Home Screen.
+ * See /docs/architecture/design-system.md for the documented, approved design system.
+ */
+@theme {
+  /* Brand */
+  --color-brand-primary: #1f3ed6;
+
+  /* Text */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #535763;
+
+  /* Surfaces */
+  --color-surface-bg: #ffffff;
+  --color-surface-pill: #efeeee;
+  --color-surface-selected: #d3ebfe;
+  --color-surface-searchbar: #ffffff;
+  --color-surface-notification: #fafafa;
+  --color-overlay-scrim: rgb(0 0 0 / 70%);
+
+  /* Status / feedback */
+  --color-notification-red: #ef4444;
+  --color-search-caret: #5cb8ff;
+  --color-divider: #ededed;
+
+  /* Category colors (fixed design tokens - see design-system.md discussion re: DB color_bg) */
+  --color-category-handyman: #ffe6ed;
+  --color-category-plumber: #e3ddfe;
+  --color-category-electrician: #fff9c4;
+  --color-category-ac: #e0f7fa;
+
+  /* Shadows */
+  --shadow-card: 0px 2px 2px 0px rgba(0, 0, 0, 0.12);
+  --shadow-notification: 0px 1px 1px 0px rgba(0, 0, 0, 0.08);
+  --shadow-search-bar: 0px 2px 8px 0px rgba(0, 0, 0, 0.06);
+  --shadow-button: 0px 1px 1px 0px rgba(0, 0, 0, 0.08);
+
+  /* Radius */
+  --radius-card: 24px;
+  --radius-sheet: 24px;
+
+  /* Typography */
+  --font-sans: var(--font-rubik);
+
+  /* Motion */
+  --animate-caret-blink: caret-blink 1s step-end infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
   }
 }
 
+html {
+  height: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  line-height: 1.4;
+  /*
+   * Design System rule (confirmed 2026-07-31): default letter-spacing is 0
+   * for all typography, set once here. Do NOT add per-element
+   * `tracking-[...px]` overrides - the small non-zero values Figma reports
+   * per text node are auto-kerning artifacts, not intentional design
+   * tokens, so this global default is the single source of truth.
+   */
+  letter-spacing: 0;
+  min-height: 100%;
 }
