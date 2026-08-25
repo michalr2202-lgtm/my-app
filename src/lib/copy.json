@@ -9,6 +9,12 @@
     "appMeta": {
       "title": "DoorHub",
       "description": "הזמנת בעלי מקצוע לשירותי בית"
+    },
+    "rotateDevice": {
+      "message": "לחוויה הטובה ביותר, אנא סובבו את המכשיר בחזרה למצב לאורך"
+    },
+    "combobox": {
+      "noResults": "אין תוצאות"
     }
   },
   "jobStatus": {
@@ -94,6 +100,7 @@
   "bookingFlow": {
     "closeAriaLabel": "סגור",
     "previous": "הקודם",
+    "submitOrder": "שלח הזמנה",
     "searchMatch": {
       "understoodHeading": "נראה שהבנו את הבעיה",
       "youWrote": "כתבת: '{query}'",
@@ -102,8 +109,7 @@
       "noMatchOption": "אין התאמה",
       "priceRange": "טווח מחיר עבור עבודה זו: {min}–{max} ₪",
       "priceAfterInspection": "טווח מחיר עבור עבודה זו: מחיר לאחר אבחון",
-      "next": "הבא",
-      "nextStepComingSoon": "השלב הבא בזרימה יתווסף מיד אחרי מסך ה-Figma הבא"
+      "next": "הבא"
     },
     "scheduling": {
       "heading": "בחר מועד הגעה",
@@ -116,10 +122,107 @@
       "subtext": "נשמח לעזור לך בתחומים שבהם יש לנו אנשי מקצוע זמינים",
       "backHome": "חזרה לדף הבית"
     },
+    "noServiceMatch": {
+      "heading": "לא מצאנו התאמה לבעיה שתיארת",
+      "subtext": "אפשר לנסות לתאר את הבעיה שוב במילים אחרות כדי שנוכל למצוא את השירות המתאים."
+    },
     "noPriceYet": {
-      "heading": "עדיין לא מוגדר עבור שירות זה טווח מחיר במערכת.",
+      "heading": "זיהינו שזו עבודה בתחום {category}, אך טווח המחיר לשירות הזה עדיין לא מוגדר במערכת",
       "subtext": "נוכל למצוא עבורך איש מקצוע בקטגוריה זו, אך הערכת המחיר תינתן לאחר הגעתו.",
       "continueOrder": "המשך לביצוע ההזמנה"
+    },
+    "noSlotsForDate": {
+      "heading": "אי אפשר לתאם הגעה להיום",
+      "subtext": "ניתן לתאם הגעה עד שעה לפני המועד המבוקש, והשעה המאוחרת ביותר להגעה היא 18:00 בימי חול ו-14:00 בימי שישי. נשמח למצוא לך מועד מתאים ביום אחר.",
+      "chooseAnotherDay": "בחר יום אחר"
+    },
+    "jobCreated": {
+      "heading": "ההזמנה נשלחה בהצלחה!",
+      "subtext": "נעדכן אותך כשבעל מקצוע יאשר את ההזמנה",
+      "closeAction": "לדף הבית"
+    },
+    "submitFailed": {
+      "heading": "לא הצלחנו לשלוח את ההזמנה",
+      "subtext": "אירעה תקלה, נסה שוב בעוד רגע",
+      "retryAction": "נסה שוב"
+    },
+    "attachments": {
+      "heading": "רוצה לדייק את ההזמנה?",
+      "subheading": "הוסף תמונות או הערות כדי שבעל המקצוע יגיע מוכן (לא חובה)",
+      "addNoteButton": "הוסף הערה",
+      "notePlaceholder": "כתוב הערה לבעל המקצוע...",
+      "noteEditAriaLabel": "עריכת הערה",
+      "noteDeleteAriaLabel": "מחיקת הערה",
+      "addPhotosButton": "הוסף תמונות",
+      "photoDeleteAriaLabel": "מחיקת תמונה",
+      "maxPhotosReached": "ניתן להוסיף עד 3 תמונות",
+      "next": "הבא"
+    },
+    "authentication": {
+      "heading": "בוא נאמת את המספר שלך",
+      "subheading": "כדי שנוכל לעדכן אותך על ההזמנה ובעל המקצוע יוכל ליצור איתך קשר",
+      "phoneLabel": "מספר טלפון",
+      "phonePlaceholder": "050-1234567",
+      "sendCodeButton": "שלח קוד",
+      "codeLabel": "קוד אימות",
+      "codePlaceholder": "הקוד שקיבלת ב-SMS",
+      "verifyButton": "אמת",
+      "resendCooldown": "אפשר לשלוח קוד חדש בעוד {seconds} שניות",
+      "resendButton": "שלח קוד מחדש",
+      "errorInvalidPhone": "מספר טלפון לא תקין",
+      "errorSendFailed": "לא הצלחנו לשלוח את הקוד, נסה שוב",
+      "errorInvalidCode": "קוד שגוי, נסה שוב",
+      "errorExpiredCode": "הקוד פג תוקף, שלח קוד חדש"
+    },
+    "newUserDetails": {
+      "heading": "רק עוד כמה פרטים",
+      "subheading": "כדי שבעל המקצוע יידע להגיע אלייך",
+      "firstNameLabel": "שם פרטי",
+      "lastNameLabel": "שם משפחה",
+      "cityLabel": "עיר",
+      "cityPlaceholder": "בחר עיר",
+      "streetLabel": "רחוב",
+      "streetPlaceholder": "בחר רחוב",
+      "streetSearchHint": "הקלידו כדי לחפש רחוב",
+      "buildingNumberLabel": "מספר בית",
+      "apartmentLabel": "דירה (אופציונלי)",
+      "entranceCodeLabel": "קוד כניסה (אופציונלי)",
+      "next": "הבא"
+    },
+    "confirm": {
+      "heading": "הכל מוכן!",
+      "subheading": "בדוק שהפרטים נכונים ושלח את ההזמנה",
+      "apartmentLine": "דירה {apartment}",
+      "entranceCodeLine": "קוד כניסה {code}",
+      "changeAddress": "שנה כתובת"
+    },
+    "orderRecap": {
+      "notesIncludedLabel": "צורפה הערה",
+      "photosCountLabel": "{count} תמונות מצורפות",
+      "priceAfterInspectionShort": "מחיר לאחר אבחון",
+      "contactLabel": "איש קשר בכתובת"
+    },
+    "chooseAddress": {
+      "heading": "לאיזו כתובת לשלוח את ההזמנה?",
+      "subheading": "בחר כתובת שמורה, או הוסף כתובת חדשה",
+      "addNewLabel": "הוסף כתובת חדשה",
+      "continueLabel": "המשך לביצוע ההזמנה",
+      "backLabel": "חזור",
+      "newHeading": "כתובת חדשה",
+      "newSubheading": "למי שאתה מזמין עבורו, אם שונה ממך",
+      "saveNewAddress": "שמור כתובת",
+      "contactNameLabel": "איש קשר בכתובת (אופציונלי)",
+      "contactPhoneLabel": "טלפון איש קשר (אופציונלי)",
+      "otherContactLimitReached": "אפשר לשמור עד {max} כתובות עבור אנשים אחרים.",
+      "totalAddressLimitReached": "אפשר לשמור עד {max} כתובות בסך הכל.",
+      "editLinkLabel": "ערוך",
+      "editHeading": "עריכת כתובת",
+      "editSubheading": "אפשר לעדכן מספר בית, דירה או קוד כניסה. אפשר גם להוסיף שם או טלפון של איש קשר אם עדיין לא הוגדרו – אך לא להחליף איש קשר קיים. לשינוי רחוב או עיר יש להוסיף כתובת חדשה.",
+      "updateAddress": "עדכן כתובת",
+      "deleteAriaLabel": "מחק כתובת",
+      "deleteConfirmLabel": "מחק",
+      "deleteCancelLabel": "ביטול",
+      "deleteError": "לא ניתן היה למחוק את הכתובת. נסה שוב."
     }
   }
 }

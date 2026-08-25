@@ -338,24 +338,26 @@ Rules:
 ## 11. Data Model (Supabase)
 
 ### users
-- id
+- id (= `auth.users.id` - this table is a profile extension of Supabase Auth, not an independently-keyed identity; see `frontend-architecture.md` once the auth flow is implemented)
 - phone (unique)
 - first_name
 - last_name
-- gender
 - email (optional)
 - role (customer / professional)
 - created_at
 
 ### addresses
 - id
-- user_id
-- city
-- street
-- building_number
-- apartment
-- entrance_code
-- is_default
+- user_id (one user may have several saved addresses, up to `MAX_TOTAL_ADDRESSES` per user - see "Address Book" in `client-booking-flow-prd.md`, added 2026-08-23. This cap - and the separate `MAX_OTHER_CONTACT_ADDRESSES` cap below - count every address row ever created for a user, including soft-deleted ones (`deleted_at` below), so deleting one never frees up a slot for a new one)
+- city (locked once an address is saved - editing to a different city/street means a different physical place, i.e. a move, so that's a new address instead)
+- street (locked, same reasoning as `city`)
+- building_number (editable after creation via `ChooseAddressStep`'s "ערוך" link, added 2026-08-24)
+- apartment (editable, same as `building_number`)
+- entrance_code (editable, same as `building_number`)
+- contact_name (optional - who to actually expect/call at this address, when it isn't the account holder, e.g. booking for a parent; added 2026-08-23, see `supabase/sql/address_book.sql`. Independently fillable after creation if left blank, but never replaced once set - added 2026-08-24, made independent of `contact_phone` on 2026-08-25)
+- contact_phone (optional, same purpose and same fill-in-but-never-replace rule as `contact_name`, independently of it; addresses whose `contact_phone` names someone other than the account holder are capped at `MAX_OTHER_CONTACT_ADDRESSES` per user - see `client-booking-flow-prd.md`'s "Other-contact cap")
+- is_default (means "most recently used", not a fixed pin - flipped by `submit_booking` onto whichever address each submission actually uses; reassigned by `delete_address` if the deleted row was the default)
+- deleted_at (added 2026-08-25, soft delete via `ChooseAddressStep`'s per-row trash icon / the `delete_address` RPC - `null` for a live address. Never hard-deleted: `jobs.address_id` may still reference an older address, and both caps above must keep counting a deleted row forever to prevent a delete-and-recreate cap bypass - see `client-booking-flow-prd.md`'s "Deleting a saved address")
 
 ### categories 
 - id 

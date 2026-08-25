@@ -26,7 +26,7 @@ export default async function Home() {
   const notification = fetchedNotification ?? (DEV_PREVIEW_ENABLED ? DEV_PREVIEW_NOTIFICATION : null);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col bg-surface-bg shadow-[0_0_24px_rgba(0,0,0,0.08)]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col bg-surface-bg">
       <ClientHomeScreen
         categories={categories}
         services={services}

@@ -36,7 +36,8 @@ Build this page based on the provided mobile design.
 Follow a **mobile-first approach**:
 - On larger screens, keep content centered
 - Max width: **480px**
-- Add subtle background shadow to simulate a mobile app inside a web page
+- No shadow/border around the centered column (confirmed 2026-08-16, reversing the earlier "simulate a mobile app inside a web page" shadow) - plain `bg-surface-bg` on both sides beyond 480px, nothing else.
+- Portrait-only on real touch devices: rotating a phone/tablet to landscape shows a "rotate back" overlay instead of the layout stretching wide (see `frontend-architecture.md` "Portrait-Only Guard"). Desktop browser windows are never affected by this, regardless of their aspect ratio.
 
 ## General Principles
 
@@ -47,7 +48,7 @@ Mobile First Approach:
 
 Desktop Behavior:
 - Center content with max-width: 480px
-- Add subtle background shadow to simulate mobile app inside web
+- No shadow around the centered column - see above
 
 ---
 

@@ -8,6 +8,16 @@ import { buildScheduledTime, getHourSlots } from "@/lib/scheduling";
 
 export interface SchedulingHourStepProps {
   date: Date;
+  /**
+   * Freezes "today has slots up to this moment" for the whole booking
+   * session (see `BookingFlowSheet`'s `flowNow`) - must stay stable across
+   * remounts of this step (e.g. via Previous from Attachments), otherwise
+   * real time advancing while the user fills in later steps can make
+   * previously-available hour slots disappear on return.
+   */
+  now: Date;
+  /** Restores the hour selection when returning to this screen via "הקודם". */
+  initialHour?: number | null;
   onNext: (scheduledTime: Date) => void;
   /** Omit on the first screen shown in a path; see BookingFlowSheet's history stack. */
   onPrevious?: () => void;
@@ -18,9 +28,15 @@ export interface SchedulingHourStepProps {
  * 8412:6072 - bottom half). Only reached after the date question's "הבא" -
  * its own screen, not shown alongside the date question.
  */
-export function SchedulingHourStep({ date, onNext, onPrevious }: SchedulingHourStepProps) {
-  const hourSlots = useMemo(() => getHourSlots(date), [date]);
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+export function SchedulingHourStep({
+  date,
+  now,
+  initialHour = null,
+  onNext,
+  onPrevious,
+}: SchedulingHourStepProps) {
+  const hourSlots = useMemo(() => getHourSlots(date, now), [date, now]);
+  const [selectedHour, setSelectedHour] = useState<number | null>(initialHour);
 
   const handleNext = () => {
     if (selectedHour === null) return;

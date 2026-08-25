@@ -6,14 +6,105 @@ function normalize(text: string): string {
 }
 
 /**
- * Lightweight Hebrew hints for category detection when no priced service matches.
- * Keys are `categories.name_en`. Keep short — AI covers the long tail when configured.
+ * Hebrew keyword hints for category detection when no priced service
+ * matches directly. Keys are `categories.name_en`.
+ *
+ * This is the safety net when AI classification can't run at all - missing
+ * `ANTHROPIC_API_KEY`, or the Anthropic call itself failing even after
+ * `matchServices.ts`'s one retry (see `classifyWithClaudeSonnet`) - so a
+ * real job in one of our categories doesn't get misrouted to "no
+ * professionals available" (`BookingMessageStep` "noProfessionals") just
+ * because the AI path was unavailable for that one request. Deliberately
+ * broader than a minimal set for exactly that reason - err on the side of
+ * catching a real job over missing one; `MATCH_CONFIDENCE_THRESHOLD` plus
+ * `postProcessMatches`' dominant-category filter (for the priced-service
+ * path) are what keep false positives in check elsewhere.
  */
 const CATEGORY_QUERY_HINTS: Record<string, string[]> = {
-  handyman: ["מדף", "מדפים", "תליה", "לתלות", "תלה", "לקדוח", "הרכבה", "רהיט", "תמונה", "וילון"],
-  plumber: ["ברז", "נזילה", "ביוב", "סתימה", "מים", "אסלה", "כיור", "דוד"],
-  electrician: ["חשמל", "שקע", "נורה", "מפסק", "קצר", "תאורה"],
-  ac: ["מזגן", "מיזוג", "גז למזגן", "לא מקרר", "לא מחמם"],
+  handyman: [
+    "מדף",
+    "מדפים",
+    "תליה",
+    "לתלות",
+    "תלה",
+    "לקדוח",
+    "קידוח",
+    "הרכבה",
+    "הרכבת רהיטים",
+    "רהיט",
+    "תמונה",
+    "וילון",
+    "וילונות",
+    "מראה",
+    "ארון",
+    "מגירה",
+    "צירים",
+    "דלת",
+    "תיקון דלת",
+    "מנעול",
+    "שיפוץ קטן",
+    "תיקון כללי",
+    "קיר",
+    "חור בקיר",
+  ],
+  plumber: [
+    "ברז",
+    "ברזים",
+    "נזילה",
+    "דולף",
+    "דליפה",
+    "טפטוף",
+    "ביוב",
+    "סתימה",
+    "סתום",
+    "ניקוז",
+    "צנרת",
+    "מים",
+    "מים חמים",
+    "לחץ מים",
+    "אין מים",
+    "אסלה",
+    "כיור",
+    "מקלחת",
+    "אמבטיה",
+    "דוד",
+    "דוד שמש",
+    "בוילר",
+  ],
+  electrician: [
+    "חשמל",
+    "חשמלאי",
+    "שקע",
+    "תקע",
+    "נורה",
+    "מנורה",
+    "גוף תאורה",
+    "מפסק",
+    "לוח חשמל",
+    "נתיך",
+    "פחת",
+    "קצר",
+    "קצר חשמלי",
+    "תאורה",
+    "אין חשמל",
+    "נפל החשמל",
+    "כבל",
+  ],
+  ac: [
+    "מזגן",
+    "מזגנים",
+    "מיזוג",
+    "גז למזגן",
+    "גז מזגן",
+    "לא מקרר",
+    "לא מחמם",
+    "ניקוי מזגן",
+    "טיפול מזגן",
+    "מזגן מדליף",
+    "דולף מזגן",
+    "מסנן מזגן",
+    "קומפרסור",
+  ],
 };
 
 export interface CategoryMatch {

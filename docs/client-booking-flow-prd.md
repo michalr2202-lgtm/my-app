@@ -52,7 +52,9 @@ Confirmed order:
 4. Attachments (Photos / Notes) — optional to fill
 5. Authentication (phone + OTP) — only if no active session
 6. New User Details — only if the verified phone is new
-7. Confirm & Submit → Job created
+7. Confirm — always the final screen, for every path
+
+Step 7 is the one shared "Confirm & Submit" screen for every path (fixed 2026-08-21 - see "Submission" below for why this replaced an earlier design where Steps 4/5 could themselves be terminal). Steps 4-6 never render a submit button or an order recap themselves; they always advance via `"הבא"` to Step 7.
 
 ### Step 1: Category Selection
 
@@ -71,7 +73,7 @@ Confirmed order:
 ### Step 3: Scheduling
 
 - A date question followed by a time-slot question (Figma: `OrderBottomSheet_Scheduling`, node `8412:6072`) - two separate screens per Rule 5 (Step Screen Reveal Rule): the hour question only appears after "הבא" is pressed on the date screen. There is no separate "Now vs. later" toggle inside this step - urgency is resolved before reaching it:
-  - **Home Screen Time Pill entry (Flow 2, "דחוף עכשיו"):** pre-selects immediate/"Now" and **skips this step entirely** (per Entry Point Mapping below). Matching/arrival deadlines then run after Step 7 - see `project-prd.md` Section 5 ("Immediate ('Now') Job Matching").
+  - **Home Screen Time Pill entry (Flow 2, "דחוף עכשיו"):** pre-selects immediate/"Now" and **skips this step entirely** (per Entry Point Mapping below). Matching/arrival deadlines then run after Submission - see `project-prd.md` Section 5 ("Immediate ('Now') Job Matching").
   - **Every other entry point** (Search, Category Card, Service Pill) reaches this step and picks a date + time slot, including **today** - selecting today does not require the soonest slot; it books a specific hour later the same day (confirmed: today is a normal, always-available date option, not reserved for the "Now" flow).
 - Date range (confirmed):
   - Offer **6 selectable dates**, in calendar order starting from and including today (e.g. if today is Sunday: today, Monday, Tuesday, Wednesday, Thursday, Friday - Saturday is skipped and does not count toward the 6).
@@ -79,7 +81,8 @@ Confirmed order:
 - Time slots (confirmed): **1-hour windows** (per Figma; supersedes the old "2-hour window" assumption - `project-prd.md` Step 4 updated to match).
   - Working hours: **08:00-18:00** on every day except Friday.
   - **Friday: 08:00-14:00** (shortened hours before Shabbat) - last selectable slot is 13:00-14:00.
-  - When today is selected, slots that have already started are not offered.
+  - When today is selected, slots are only offered if they start more than **1 hour** from now (confirmed lead time - not just "not yet started"; a professional needs realistic notice to be dispatched).
+  - If today's lead-time cutoff empties the slot list entirely (today past its last bookable hour, or today being Friday past its last bookable hour), the hour screen is skipped and a dedicated message screen is shown instead (`BookingMessageStep` kind `noSlotsForDate`): explains that appointments require 1 hour of notice and that the latest bookable arrival hour is 18:00 on weekdays / 14:00 on Fridays (framed as the latest **arrival** time, not "hours of operation" - the job itself may run later than that), with a single "בחר יום אחר" CTA back to the date screen. "היום" itself stays selectable on the date screen regardless (confirmed) - this message is only reached after pressing "הבא" with today chosen.
 - Persists to `jobs.scheduled_time` (`timestamptz` - start of the chosen 1-hour window; confirmed against the live schema 2026-08-06 - the column was previously `scheduled_date`/`date`-only and has been migrated).
 - Advances to Step 4.
 
@@ -88,30 +91,82 @@ Confirmed order:
 - Optional to fill - the customer may skip without adding photos or notes.
 - The step itself is always part of the sequence (shown regardless of entry point) unless a future decision says otherwise.
 - Maps to the Order's Attachments section (per `order-model.md`: "Images and files related to the Order... may include Customer images").
-- **Needs Confirmation:** maximum photo count (if any).
-- Advances to Step 5.
+- **One single screen** (unlike Scheduling) - both affordances below are always visible together from the moment the screen loads. This is a deliberate choice: because notes and photos are independent and both optional, showing both at once avoids ever needing to "ask about photos later" if the user only interacted with notes (or vice versa) - there is exactly one "הבא" for the whole step, always enabled.
+  - **Notes:** tapping the "הוסף הערה" row expands an inline text field directly below it (autofocus). The text is saved to the draft automatically on every keystroke - no separate "שמירה" action, consistent with how every other answer in this flow (selected service, date, etc.) is captured immediately rather than behind an explicit save step. Once collapsed with text present, the row shows a truncated preview ("chip") of the note with edit (pencil) and delete (trash) affordances.
+  - **Photos:** tapping "הוסף תמונות" opens the native photo picker (camera/gallery, multi-select). Selected photos render as a thumbnail grid directly below the button, each with its own delete (X). **Confirmed: maximum 3 photos** - once reached, the add-photos affordance is disabled/hidden until a photo is removed.
+- Always advances via `"הבא"` - never terminal itself. If an active session already exists on this device AND that session's profile is complete, Steps 5-6 are skipped and "הבא" here goes straight to Step 7 (Confirm) instead; otherwise it goes to Step 5. (Fixed 2026-08-21: an earlier version made this screen itself the Submission action - swapping its label to `"שלח הזמנה"` and rendering the read-only order recap alongside the notes/photos content - whenever it was terminal for a given user. That combined layout didn't reliably fit `BottomSheet`'s `max-h-[92dvh]` on every viewport, observed as a scrollbar inside the sheet on a laptop; see Step 7/"Submission" below and `ConfirmStep`'s doc comment.)
 
 ### Step 5: Authentication
 
 - Shown only if there is no active session on the current device. Authentication is a **device/session-level** check, not a per-order check - once verified, the user stays authenticated across app opens until they explicitly log out or the local session is cleared (app data deleted / reinstall / new device).
-- Phone number input → OTP sent via Supabase → OTP verification (per `project-prd.md` Step 5).
+- **One screen, not two:** phone number input, then tapping "שלח קוד" reveals an OTP code field inline on the same screen (expand-in-place, the same pattern `AttachmentsStep` uses for its note field - no navigation to a second screen/history entry). OTP sent via Supabase (per `project-prd.md` Step 5). Auto-verifies as soon as the 6th digit is entered; an "אמת" button stays available as a manual fallback (e.g. pasting the code). A resend control appears after a short cooldown.
 - On successful OTP verification, a session is established on the device via Supabase Auth (mechanism detail belongs in `frontend-architecture.md` once implemented).
-- Whether the phone number is new or already known in the `users` table determines whether Step 6 is shown next.
+- Whether the verified phone is new or already known in the `users` table can only be checked **after** verification succeeds (the check is scoped to the now-authenticated identity, per Row Level Security - it can't be answered against an unverified, client-typed number). This determines what happens next - never terminal itself:
+  - **Phone already has a profile** (returning customer, even on a new device or after logout/reinstall): advances straight to Step 7 (Confirm) - existing profile data is reused, nothing else is asked. (Fixed 2026-08-21: an earlier version made this screen itself terminal here, re-rendering with a `"זיהינו אותך!"` heading + the recap + a `"שלח הזמנה"` button in place of advancing - moved to the shared Step 7 for consistency with the other two populations, see "Submission" below.)
+  - **Phone is new**: advances directly to Step 6, with no intermediate acknowledgment screen - Step 6's own heading (`"רק עוד כמה פרטים"`) already delivers the "almost done" reassurance an interstitial message would otherwise repeat, so adding one would just be redundant dead time before a form the user still has to fill in.
 - If a valid session already exists on this device, this step is skipped entirely.
-- Advances to Step 6.
 
 ### Step 6: New User Details
 
 - Shown only if the phone number verified in Step 5 does not already exist in the `users` table (i.e., a genuinely new customer - regardless of device history).
-- First name, last name, address (city, street, building number, apartment, entrance code optional) - per `project-prd.md` Step 5.
-- If the phone number already has a profile (returning customer, even on a new device or after logout/reinstall), this step is skipped entirely - existing profile data is reused.
-- Advances to Step 7.
+- **One screen, all fields at once:** first name, last name, city, street, building number, apartment (optional), entrance code (optional) - per `project-prd.md` Step 5. Phone is not asked here - it was already verified in Step 5.
+  - **City and street** are both restricted `Combobox` selections, not free text - per the MVP Geographic Scope in `project-prd.md`, Herzliya and Ramat Hasharon are the only two legal cities, and street is restricted to that city's real, official street registry (sourced from Israel's Population and Immigration Authority via data.gov.il - see `src/lib/addresses.ts`), so there is nothing invalid to type or reject; a picker/autocomplete removes the error state entirely rather than catching it after the fact.
+  - **Layout:** name fields share a row (half-width each). City sits alone on its own full-width row - it's a prerequisite decision, not a peer of street (the street `Combobox` stays disabled, and its option list stays empty, until a city is picked; selecting a city also resets any already-chosen street, since the list is scoped per city). Street then shares a row with building number, sized roughly 2:1 - "street + number" is read and filled as one address unit (e.g. "הרצל 15"), the same pairing convention most address forms use, so it gets its own line rather than being paired with city. A single combined "city + street + number" row (closer to a Waze-style single search field) was considered and rejected: Waze's single line is backed by free-text geocoding across a national address database, not a restricted 2-city/per-city-street-list picker like this one, so a single line here would both look cramped (little room left for long Hebrew street names, which need more space than a 3-way split leaves) and misleadingly imply a flexibility the underlying data doesn't have. Apartment and entrance code (both optional) share the final row, split evenly.
+  - **Building number** uses numeric input mode.
+- Advances to Step 7 via `"הבא"` - never terminal itself (see "Submission" below).
 
-### Step 7: Confirm & Submit
+### Step 7: Confirm
 
-- Final review, submit triggers Job creation.
-- Job is sent to all professionals in the relevant category; first to accept gets it (per `project-prd.md` Step 6 / `home-screen-prd.md` Flow 5).
-- Flow ends; user sees Job Created confirmation.
+- The single dedicated review-and-submit screen every path ends on, regardless of population - reached from Step 4 (session + profile already complete), Step 5 (phone just verified, already has a profile), or Step 6 (genuinely new phone).
+- Renders the read-only order recap described under "Submission" below - for the new-phone population, also including the name/address just entered on Step 6 - plus a `"שלח הזמנה"` button.
+- Its own dedicated screen rather than rendered inline at the bottom of whichever step precedes it, for every population (fixed 2026-08-21, generalizing a decision first made 2026-08-20 for the new-phone case alone): stacking a recap card under a step's own interactive content (Step 6's already-full field list, or Step 4/5's own note/photo/phone-OTP content) doesn't reliably fit within the Bottom Sheet's `max-h-[92dvh]` on every viewport - observed as a visible scrollbar inside the sheet on a laptop when Step 4 (Attachments) combined its own content with the recap. No Bottom Sheet screen may ever actually scroll, on any device (see `BottomSheet.tsx`'s doc comment) - splitting into this extra step, not scrolling, is the fix whenever a screen's content doesn't fit on its own.
+- `"הקודם"` returns to whichever step preceded it, with every field exactly as left (e.g. see `NewUserDetailsStep`'s `initialValues` prop for the Step 6 case) - this is a real, fully reversible round trip, not a one-way commit.
+- **Why this screen exists at all, rather than each preceding step just submitting directly** (considered and rejected 2026-08-20 for Step 6 specifically): the always-available `"הקודם"` button lets a user *fix* a field they already suspect is wrong, but it doesn't help them *notice* one they don't. This is worst for Step 6, since the address is filled field-by-field (city, then street, then a number typed right after it) and never once shown assembled as a single line the way it'll actually be read by a professional - Step 7 is the only point in the flow where that happens (`formatAddressLine`), which is precisely the format a typo like a swapped building number or wrong entrance code tends to actually surface in. For every population, Step 7 is also simply the one point every path shares in common: exactly one recap, exactly one explicit commit tap, regardless of how many steps a given path included.
+
+### Submission
+
+Step 7 (Confirm) is the one screen every path ends on: its primary button reads `"שלח הזמנה"` (not `"הבא"`), and it renders a read-only order recap (category/service, date/time, price or "price after inspection", whether a note/photos were attached) - so every user sees exactly one such recap and taps exactly one explicit commit button, regardless of how many steps their path included. The recap is styled after `ActiveJobCard` (confirmed 2026-08-20, redesigned against Figma node `8483:6420`) - same card shell and structure, full black text, since this is effectively previewing the Job Card the order becomes. It does include a note/photo-attached indicator - reconsidered 2026-08-20 (an earlier pass here had dropped it, reasoning that the eventual Job Card doesn't show one either): the Job Card's omission is fine specifically because that card is a compact list item that defers detail to a tap-through into the full job, note/photos included - this recap has no such tap-through, it's the only point in the flow with no full view of the order before it's created, so a customer genuinely needs the confirmation here that what they attached actually made it in.
+
+- Session + profile already complete → Attachments (Step 4) advances directly to Confirm (Step 7).
+- No session, but the verified phone already has a profile → Authentication (Step 5) advances directly to Confirm (Step 7), immediately after OTP verification succeeds.
+- No session, and the phone is new → New User Details (Step 6) advances to Confirm (Step 7), which additionally shows the just-entered name/address (see Step 7 above).
+
+**Fixed 2026-08-21:** the first two paths above previously made Step 4/Step 5 themselves terminal - swapping that step's own button to `"שלח הזמנה"` and rendering the recap inline on top of its own content - rather than routing through a shared Step 7 the way the new-phone path always did. Found the same day as the RLS/status-constraint fixes below, testing a second (returning-user) booking end-to-end: the Attachments+recap combination didn't fit `BottomSheet`'s `max-h-[92dvh]` on a laptop viewport, producing a visible in-sheet scrollbar - not acceptable per this doc's Bottom Sheet rule (see `BottomSheet.tsx`). Rather than special-casing a fix for just that one combination, every path now always takes the same extra step to the shared, guaranteed-to-fit Step 7 instead - see `ConfirmStep`'s doc comment.
+
+Submitting creates the Job (and, for a new profile, the `users`/`addresses` rows) as a single atomic operation - see `frontend-architecture.md` once implemented. Job is sent to all professionals in the relevant category; first to accept gets it (per `project-prd.md` Step 6 / `home-screen-prd.md` Flow 5). Flow ends; user sees Job Created confirmation.
+
+**Fixed 2026-08-21:** every submission was failing (`phase` fell to `submit_failed`) because `public.jobs` had row-level security enabled with no insert/select policy - reproduced live via a direct RPC call and confirmed as Postgres error `42501` ("new row violates row-level security policy for table jobs"). Since `submit_booking` is one Postgres transaction, this also silently rolled back the brand-new profile/address rows it had just inserted for a new phone, which is why a customer's just-typed address never appeared to "stick" between separate booking attempts either - both symptoms were the same root cause. Fix (added to `supabase/sql/booking_flow_auth.sql`, §"jobs" RLS): customer-scoped select/insert policies on `public.jobs`, matching the existing pattern already applied for `users`/`addresses`.
+
+**Also fixed 2026-08-21:** the "no_price_yet" population (category matched, no priced catalog service) had no `selectedServiceId` at all, but `jobs.service_id` is a required FK - submitting from that population failed for a second, independent reason. Fixed with one diagnosis-priced placeholder service per category (`supabase/sql/diagnosis_placeholder_services.sql`) - see that file's header comment for why it's one row per category rather than a single shared row (professional-matching has no other way to know a job's category once it has no real service). `BookingFlowSheet` resolves the right placeholder id as soon as this outcome is known and submits with it, entirely invisibly to the customer - the recap still shows no service label and the short "מחיר לאחר אבחון" price line for this population, unchanged.
+
+**Also fixed 2026-08-21 (found right after the RLS fix above, testing the very next submission):** `public.jobs`'s `status` check constraint was out of sync with the documented lifecycle (`order-model.md` "Order Lifecycle" / `JobStatus` in `src/lib/types.ts`) - it only allowed a smaller, different set of values (`pending`, `on_the_way`, `arrived`, `in_progress`, `completed`, `cancelled`), rejecting `submit_booking`'s `'searching_professional'` with Postgres error `23514`. The code/docs were already correct (`searching_professional` is the right first persisted status - `Draft` itself is never written, per the "no partial Job is created" rule above); the constraint hadn't been updated to match. Fixed in `supabase/sql/fix_jobs_status_constraint.sql`, which replaces it with the full 13-state set.
+
+### Address Book
+
+Added 2026-08-23 (see `supabase/sql/address_book.sql`), after noticing a returning customer's second order silently reused their one saved address with no way to see or change it before submitting. Two related product questions came up while designing this:
+
+- **Should a returning customer be asked "which address?" on every app entry, Wolt-style?** No (confirmed 2026-08-23) - a home-services order (this app) is a low-frequency, deliberate action, not a daily-use food-delivery session; asking up front on every open would be friction for the common case (ordering to the same place as last time) to serve the uncommon one. Instead, Step 7 (Confirm) always shows the address that will be used, with a `"שנה כתובת"` link right next to it (`OrderRecap`'s `onChangeAddress`) - visible before commit, changeable in one tap, invisible the rest of the time.
+- **Should a customer be able to save more than one address** (e.g. their own place plus a parent's)? Yes - tapping `"שנה כתובת"` opens `ChooseAddressStep`, a picker over every address `fetchUserAddresses` returns for the account (most-recently-used first) plus an "הוסף כתובת חדשה" row that reuses the same `AddressFields` Step 6 uses. **Select-then-confirm (reworked 2026-08-25):** tapping an existing row only stages it (a checkmark, not an immediate exit) - the customer presses "המשך לביצוע ההזמנה" in the footer to actually commit and return to Step 7, matching the "select, then press the bottom CTA" pattern every other step in this sheet uses. Saving a brand-new address is the one exception and still exits straight to Step 7 in one action, since there's nothing else on that screen left to reconsider once a whole new address has just been typed. Nothing is persisted until the final `"שלח הזמנה"` tap either way (same "stage, don't persist" rule Step 6 already followed).
+- **Which saved address is shown by default next time?** Whichever one the customer actually used last (confirmed 2026-08-23) - `is_default` on `public.addresses` is flipped onto whatever address a submission used, and off every other one, by `submit_booking` itself. This was chosen over a separately pinned "home" address because it needs no extra UI (no "set as default" affordance anywhere) and matches the actual use case driving this (an occasional order to a parent's place shouldn't permanently bump the customer's own address as "the" default - it already won't, since the parent's address only becomes default if it was the one just used). A fixed pin (e.g. a `label` column) is a possible additive future change if this heuristic ever proves wrong in practice.
+
+**Recipient vs. account holder identity:** a customer's name/phone on `public.users` (used for billing/accountability, shown as the top line of `OrderRecap`) never changes based on which saved address is used - confirmed 2026-08-23, considered and rejected swapping it per-address (e.g. showing the parent's name instead of the account holder's when ordering to the parent's place). Instead, each saved address may separately carry an optional `contact_name`/`contact_phone` (only settable when the address is first created, in `ChooseAddressStep`'s "add new" view or Step 6) - who the professional should actually expect to meet/call there, shown as a secondary line in `OrderRecap` only when set. This keeps "who is accountable for this order" and "who the professional will meet" as two separate, independently optional pieces of information, rather than overloading one name field with both meanings.
+
+**Other-contact cap:** a flat cap on the number of saved addresses outright doesn't, by itself, prevent one account being used on behalf of several unrelated people, since N addresses each naming a different `contact_phone` *is* that exact pattern. So a separate cap targets that signal specifically: only addresses whose `contact_phone` names someone other than the account holder count against `MAX_OTHER_CONTACT_ADDRESSES` (`src/lib/addresses.ts`, currently **2** - reduced from an initial 3 on 2026-08-24 so that, together with the account holder, at most **3 distinct identities** can ever have addresses on one account) - an address with no contact override, or one matching the account holder's own verified phone, doesn't count against this at all. Confirmed 2026-08-25: this counts distinct *phone numbers*, not names - adding just a `contact_phone` to an address counts against the cap the same as adding a full name+phone pair, and a name added alone (no phone) never counts at all. This is enforced in `submit_booking` itself (server-side, authoritative) and pre-checked in `ChooseAddressStep` so the limit shows as an inline explanation next to the contact fields rather than a raw submission failure. Today's business model (customers pay the professional directly; no customer-side subscription yet) means this doesn't block any actual payment circumvention yet, but the same "distinct other-contact count" is the number a future subscription tier would naturally cap instead - laid down now specifically so that future change is a config lookup, not a redesign.
+
+**Total address cap:** added 2026-08-24, as a separate, additional flat ceiling of `MAX_TOTAL_ADDRESSES` (`src/lib/addresses.ts`, currently **5**) on every saved address row, regardless of whose contact is on it. This stacks with the other-contact cap above rather than replacing it - the other-contact cap alone doesn't limit how many properties the account holder saves under their own name, and this closes that gap with a small ceiling that's well above what any legitimate customer needs.
+
+**Both caps count cumulatively, including deleted addresses (confirmed 2026-08-25):** see "Deleting a saved address" below for why - in short, if deleting an address freed up its slot, a customer could delete-and-recreate indefinitely to work around either cap, so both caps count every address a customer has *ever* created, not just the ones currently visible in their list (`fetchAddressUsageCounts` in `src/lib/queries/addresses.ts`, mirroring `submit_booking`'s own server-side counts).
+
+**Editing a saved address:** added 2026-08-24, after a customer asked how to fix a typo'd building number on an address that was only ever selectable, not editable. Each row in `ChooseAddressStep`'s list has its own "ערוך" link (styled like `OrderRecap`'s "שנה כתובת", separate from the row tap, which stays for staging the row as this order's selection) opening an edit form, prefilled, for that address.
+- **`buildingNumber`/`apartment`/`entranceCode` are always editable.**
+- **City/street stay locked.** A different street or city is a different physical place - i.e. a move, not a correction - so that's what "הוסף כתובת חדשה" is for instead of an edit. This also avoids a saved address quietly starting to mean a different place while an earlier job still references that same row.
+- **Contact name and contact phone are independently fillable, but never replaced (refined 2026-08-25).** Each of the two fields is locked only once *that specific field* already has a value - so e.g. an address that only ever had a phone saved still allows adding the missing name later, and vice versa (an earlier all-or-nothing version of this rule blocked exactly that case, reported live by a customer whose added name silently failed to save). Filling in a still-blank phone re-checks the other-contact cap above (since a phone is what defines a distinct other-contact identity); filling in a name never does. Wanting to change a contact value that's *already set* is still treated the same as wanting a different address entirely: add a new one.
+
+Enforced both in the UI (`AddressFields`' independent `contactNameDisabled`/`contactPhoneDisabled`) and, authoritatively, in `submit_booking` itself (the update statement never touches `city`/`street`, and only ever fills a null `contact_name`/`contact_phone` - independently of each other - regardless of what a client sends) - see that function's "Edit path" comment in `supabase/sql/address_book.sql`.
+
+The edit screen's own footer (added 2026-08-25) is "חזור" (discards the in-progress edit) and "עדכן כתובת" (commits it) - both return to `ChooseAddressStep`'s list, never straight back to Step 7, keeping the list the one place a selection is actually confirmed (see "Should a customer be able to save more than one address" above).
+
+**Deleting a saved address:** added 2026-08-25, after a customer who'd saved addresses before the total cap existed found themselves over the limit with no way to remove one. A `Trash2` icon next to "ערוך" on each list row (hidden entirely when it's the account's only remaining address, so "you can't delete your last address" never needs to surface as an error) swaps that row's actions for an inline "מחק"/"ביטול" confirmation - no separate screen, consistent with this sheet's style. This is a **soft delete** (`deleted_at` on `public.addresses`, via the `delete_address` RPC), never a hard delete, for two reasons: (1) `public.jobs.address_id` references a specific address row, so a past job must keep pointing at real data; (2) most importantly, a hard delete would let a customer cycle through unlimited distinct addresses/contacts over time while staying under both caps at any single snapshot - exactly the abuse both caps exist to prevent (see "Both caps count cumulatively" above). If the deleted address was the default, `delete_address` promotes another live address to default so the next booking still has one to fall back to.
 
 ---
 
@@ -129,26 +184,29 @@ Each entry point below corresponds to a Flow already named in `home-screen-prd.m
 | Active Job Card (Flow 6) | N/A - not part of this flow | - | Navigates to a Job Details screen, not a Bottom Sheet. Out of scope. |
 | Notification (Flow 7) | N/A - not part of this flow | - | Navigates to the relevant screen (context-dependent). Out of scope. |
 
-Step 4 (Attachments) is always shown, regardless of entry point (optional to fill, not optional to reach). Steps 5, 6, and 7 are never skipped based on entry point - only based on authentication/user state, as defined in the Master Step Sequence.
+Step 4 (Attachments) is always shown, regardless of entry point (optional to fill, not optional to reach). Steps 5-6, and which of them gets skipped before reaching Step 7 (Confirm), are never decided by entry point - only by authentication/user state, as defined in the Master Step Sequence.
 
 ### Search / AI Matching (within this flow)
 
 - Input: free-text Hebrew problem description or service name from the Home Screen SearchBar (voice input later uses the same pipeline after speech-to-text).
 - Matching is a **closed-set classification** against active services in the database (`id`, `label_he`, `keywords`, category, `pricing_type`) - the model must not invent services or prices, and must not use open-web search for discovery or pricing (see `project-prd.md` Sections 10 and 19).
 - Pipeline: optional keyword/label prefilter → AI classification when needed → post-process (confidence threshold ~0.55, prefer category-consistent groups, max 3). Implemented in `src/lib/ai/matchServices.ts` / `POST /api/ai/match-services`.
+- Reliability: a real job must never be misrouted to "no professionals available" just because the AI call had a transient hiccup. `classifyWithClaudeSonnet` retries once on a thrown/network error or a 429/5xx response, and is guaranteed to resolve to an empty result rather than throw on any failure (a thrown error there would otherwise propagate uncaught and fail the whole search, skipping the fallback below entirely). If AI classification is fully unavailable (missing API key, or still failing after that retry), `matchCategoryByKeywords` (`matchCategory.ts`) is the safety net - a deliberately broad Hebrew keyword list per category, since missing a real job matters more here than an occasional over-eager match.
+- Spelling correction: a separate, deliberately tiny/catalog-free AI call (`correctQuerySpelling` in `matchServices.ts`, distinct model from the classification call - see `ANTHROPIC_CORRECTION_MODEL`) runs on **every** search, independent of and in parallel with the keyword/classification pipeline above - including searches that resolve via the keyword prefilter and never call the classification model. This is what fixes obvious Hebrew typos before the query is echoed back to the user (`SearchMatchStep`'s "כתבת: ...") - a keyword hit only guarantees the matched substring itself was typed correctly, not the rest of the sentence, so correction can't be skipped just because a keyword already resolved the match. Kept as a separate lightweight call rather than folded into the (large, full-catalog) classification prompt specifically to avoid paying that prompt's cost/latency on every search just to fix spelling.
 - Output: up to 3 service matches (with catalog price ranges), plus a user-facing **"אין התאמה"** option on the sheet.
 - Price shown after a catalog service is selected always comes from the catalog row, never from the model.
-- The original user query should be retained on the Order draft (notes / problem description) when the booking flow persists it.
+- The original user query should be retained on the Order draft (notes / problem description) when the booking flow persists it - specifically the typo-corrected version (`matchServices`'s returned `query`), since that's also what's shown to the user throughout the flow.
 
 #### Match outcomes (confirmed)
 
 | Outcome | When | UX |
 |---|---|---|
 | Priced services | Matcher returns 1–3 catalog services | Search match step → user picks a service (or "אין התאמה") → Next |
-| Category without priced service | Category identified, but no suitable priced catalog row (e.g. "לתלות מדפים") | Message `bookingFlow.noPriceYet.*` — professionals exist in the field, price range not defined yet |
-| Unresolved / user chose "אין התאמה" + Next | Outside known categories, or explicit no-match pill | Message `bookingFlow.noMatch.*` — no professionals in this field right now |
+| Category without priced service | Category identified, but no suitable priced catalog row (e.g. "לתלות מדפים") | Message `bookingFlow.noPriceYet.*` — professionals exist in the field, price range not defined yet. This outcome skips `SearchMatchStep` entirely, so its heading names the identified category itself (`{category}` template) - otherwise the category the matcher found would never be shown to the user anywhere in this path |
+| Unresolved | Outside all known categories - the matcher couldn't identify a category at all | Message `bookingFlow.noMatch.*` — no professionals in this field right now |
+| User chose "אין התאמה" + Next | A category/services WERE identified and shown, but none of the shown pills fit what the user actually needs | Message `bookingFlow.noServiceMatch.*` — distinct from "Unresolved" above: doesn't claim there are no professionals in the field (there may well be), just that this specific description didn't match a known service, and invites rephrasing. Same back-home CTA as "Unresolved" (`noMatch.backHome`, reused rather than duplicated) |
 
-Selecting **"אין התאמה"** does **not** advance immediately — it enables Next like any other pill; Next then shows the no-professionals message.
+Selecting **"אין התאמה"** does **not** advance immediately — it enables Next like any other pill; Next then shows the no-service-match message above (not the "Unresolved" one - see the distinction in the table).
 
 ---
 
@@ -164,7 +222,7 @@ Per `order-model.md`, every Bottom Sheet must declare which Order section its da
 | Attachments (photos, notes) | Attachments |
 | Authentication (phone, OTP) | Customer Information |
 | New User Details (name, address) | Customer Information / Location |
-| Confirm & Submit | Status (Draft → Searching Professional) |
+| Submission (merged into whichever step is terminal) | Status (Draft → Searching Professional) |
 
 Exact field names are intentionally not listed here, consistent with `order-model.md`: *"The exact fields of the Draft are intentionally not documented yet. They will be introduced gradually as booking screens are implemented."* Field-level detail belongs in `order-model.md`, added when each step is actually implemented.
 
@@ -179,7 +237,7 @@ Exact field names are intentionally not listed here, consistent with `order-mode
 - **Loading (photo upload):** per-image upload progress.
 - **Error (photo upload failed):** inline error, allow retry/remove.
 - **Validation:** phone number format, required address fields, required category/service selection before advancing.
-- **Post-submission (Now only):** after Step 7, while matching is in progress (up to 15 min) - see `project-prd.md` Section 5. Not part of the Bottom Sheet itself; surfaced via notifications per `notification_system_prd.md`.
+- **Post-submission (Now only):** after Submission, while matching is in progress (up to 15 min) - see `project-prd.md` Section 5. Not part of the Bottom Sheet itself; surfaced via notifications per `notification_system_prd.md`.
 
 ---
 
@@ -197,9 +255,11 @@ An entry point may only ever skip steps because the corresponding information is
 
 Back navigation within the flow returns to the previous **shown** screen (skipped steps/screens remain skipped; they are not revisited going backward). Triggered by a "הקודם" (Previous) button next to that screen's "הבא", shown starting from the second screen in a path (never on the first screen reached in a given entry point) - always rendered active, no disabled state. Returning to a screen restores the answer previously given there (e.g. the picked service, date), rather than showing it empty.
 
+Authentication (Step 5) is a deliberate exception once it's actually verified, not just "shown": going back past it re-treats it as skipped rather than revisiting it, exactly as if a session had already existed when the flow first reached it (confirmed 2026-08-20 - see `BookingFlowSheet`'s `handlePrevious` in `component-library.md`). It's the one screen whose "answer" (a verified session) genuinely can't be restored on the way back the way a picked service or date can - `AuthenticationStep` unmounts once the flow moves on, so its local phone/code state is gone, and re-rendering it fresh would show a blank, unverified-looking form for a user who's already authenticated. Re-verifying a phone that's already verified isn't a real question to revisit; it's just stale UI.
+
 ### Rule 4
 
-Closing/dismissing the Bottom Sheet before Step 7 discards the in-progress Order Draft (no partial Job is created). Aligns with `home-screen-prd.md` Rule 3 ("No state persistence if user exits mid-flow"). A "Discard changes?" confirm dialog may be added in a future version; MVP behavior is discard without persistence.
+Closing/dismissing the Bottom Sheet before Submission discards the in-progress Order Draft (no partial Job is created). Aligns with `home-screen-prd.md` Rule 3 ("No state persistence if user exits mid-flow"). A "Discard changes?" confirm dialog may be added in a future version; MVP behavior is discard without persistence.
 
 ### Rule 5 — Step Screen Reveal Rule
 
@@ -210,11 +270,14 @@ Each Master Step Sequence step may render as one or more distinct **screens** in
 
 Selecting a pill within that question may only reveal/update information already scoped to that same question (e.g. the price line after picking a service) - it must **never** reveal a new question. Advancing to the next screen (its own info blocks + next question) happens **only** when the user presses that screen's "הבא" (Next). This is why a step with more than one question (like Scheduling) must be split into that many screens, each with its own Next - never combined onto a single screen.
 
+**Exception - Authentication's phone/OTP fields:** Step 5's phone input and its inline-revealed OTP code field are not two independent questions the way Scheduling's date and hour are - they're two sequential inputs of one action ("verify your phone"), where the second literally cannot exist until the first has been submitted (there's no OTP to enter before a code has been sent). Revealing the OTP field in place, on the same screen, is treated the same way the price line or a selected-pill's dependent detail is - information scoped to the same question - rather than a second, independent question requiring its own screen.
+
 ---
 
 ## 7. Edge Cases
 
-- AI returns no match / user picks "אין התאמה" → no-match message + back-home CTA (confirmed).
+- AI returns no match at all (no category identified) → no-match message + back-home CTA (confirmed).
+- User picks "אין התאמה" (a category/services were shown, none fit) → distinct no-service-match message ("try rephrasing"), same back-home CTA (confirmed) - see the Match Outcomes table above.
 - No selectable dates/slots within the 6-day window after excluding Fri/Sat (**Needs Confirmation** - undefined fallback).
 - OTP delivery failure / timeout (**Needs Confirmation** - undefined exact UX; retry/resend is the minimum expected).
 - User abandons flow mid-way (see Rule 4).

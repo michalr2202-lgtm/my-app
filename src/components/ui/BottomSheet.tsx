@@ -18,6 +18,24 @@ export interface BottomSheetProps {
  * BottomSheet - shared overlay shell for booking (and future) flows.
  * Covers the full viewport including BottomNavigation; scrim is 70% black.
  * Panel docks to the bottom with top corners rounded (`rounded-sheet`).
+ *
+ * Hard rule (confirmed 2026-08-21): no Bottom Sheet screen may ever
+ * actually scroll, on any device - mobile or desktop. If a screen's
+ * content doesn't fit, the fix is to split it into an additional step, not
+ * to let it scroll (this is why booking's Step 7 exists as its own screen
+ * instead of stacking `OrderRecap` under Step 6's already-full field list,
+ * and why the recap is never rendered inline on Attachments/Authentication
+ * either - see `ConfirmStep`'s doc comment for the concrete case this was
+ * caught from).
+ *
+ * `max-h-[92dvh]`/`overflow-y-auto` below stay as a defensive cap only -
+ * every individual step must independently fit comfortably under that
+ * height by design, so in normal operation this never actually engages
+ * (no visible scrollbar, nothing to scroll). It exists purely so an
+ * unexpectedly tall screen fails safe (content still reachable by
+ * scrolling) instead of failing hard (its footer/submit button pushed
+ * off-screen and completely unreachable) - it is not a substitute for
+ * verifying every step actually fits.
  */
 export function BottomSheet({
   open,
@@ -59,7 +77,7 @@ export function BottomSheet({
           role="dialog"
           aria-modal="true"
           className={cn(
-            "relative z-10 flex w-full flex-col rounded-t-card bg-surface-bg px-4 pb-6 pt-4",
+            "relative z-10 flex max-h-[92dvh] w-full flex-col overflow-y-auto rounded-t-card bg-surface-bg px-4 pb-6 pt-4",
             className
           )}
         >

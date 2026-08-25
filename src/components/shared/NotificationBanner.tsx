@@ -12,10 +12,13 @@ export interface NotificationBannerProps {
   iconSrc?: string;
   tone: NotificationTone;
   /**
-   * Unread notifications render bold. Defaults to `false`: Figma's only
-   * concrete reference for this banner (a critical "cancelled" example)
-   * renders regular weight, so that's the safe default until a confirmed
-   * unread/read distinction exists for this specific banner.
+   * Unread notifications render bold. Defaults to `true`: per
+   * `notification_system_prd.md` ("Auto-dismiss after a defined duration or
+   * on click"), this banner can never be showing on screen in an
+   * already-clicked state - clicking it dismisses it - so while visible it
+   * is always effectively unread. `false`/regular weight is reserved for a
+   * future Notifications history screen, where already-read items remain
+   * visible after being opened (not this banner).
    */
   unread?: boolean;
   onClick?: () => void;
@@ -33,7 +36,7 @@ export function NotificationBanner({
   icon: Icon,
   iconSrc,
   tone,
-  unread = false,
+  unread = true,
   onClick,
 }: NotificationBannerProps) {
   return (

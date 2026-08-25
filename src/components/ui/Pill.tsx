@@ -13,7 +13,10 @@ export interface PillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  *
  * Used for: TimePill, ServicePill, ExpandServicesButton (see
  * /docs/home-screen-prd.md Component Architecture). Visuals per Figma:
- * rounded-full, px-16 py-12, 14px Medium text, 0.21px tracking.
+ * rounded-full, px-16 py-12, 14px Medium text. No letter-spacing override -
+ * Figma's per-node tracking value here is an auto-kerning artifact, not an
+ * intentional token; see design-system.md "Typography" for the app-wide
+ * letter-spacing: 0 rule this follows instead.
  *
  * Interaction feedback follows the global rule in
  * /docs/architecture/frontend-architecture.md: 0.2s transition, scale

@@ -55,8 +55,36 @@
   }
 }
 
+/*
+ * Portrait-only guard (see frontend-architecture.md "Portrait-Only Guard").
+ * Scoped to `(hover: none) and (pointer: coarse)` - real touch devices
+ * (phones/tablets) - deliberately combined with `orientation: landscape`,
+ * not just the orientation query alone, so resizing a desktop browser
+ * window into a wide-but-short shape (mouse/keyboard input) never
+ * triggers it - only an actual device rotation does.
+ */
+.rotate-guard {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .rotate-guard {
+    display: flex;
+  }
+}
+
 html {
   height: 100%;
+  /*
+   * Suppresses the default translucent tap-flash mobile WebKit/Blink
+   * browsers show on any tapped element (a brief gray/blue overlay) -
+   * this app already gives every interactive element its own deliberate
+   * press feedback (`active:scale-[0.96] active:brightness-95`, see
+   * design-system.md "Interaction & Motion"), so the browser's own
+   * default flash on top of that is unwanted, not a native decoration
+   * to keep.
+   */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -73,4 +101,23 @@ body {
    */
   letter-spacing: 0;
   min-height: 100%;
+}
+
+/*
+ * Neutralizes the browser-injected background WebKit/Chromium paint over
+ * an autofilled/autofill-suggested input (a light blue/yellow tint that
+ * can't be overridden via a normal `background-color` rule, since the
+ * browser applies it with higher precedence) - e.g. Safari suggesting a
+ * saved phone number for AuthenticationStep's phone field. The 1000px
+ * inset box-shadow paints over it with this app's own field background;
+ * the absurdly long `transition-delay` is the standard trick to stop the
+ * browser from re-applying its own tint the moment the field is focused
+ * or re-validated.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-surface-bg) inset;
+  -webkit-text-fill-color: var(--color-text-primary);
+  transition: background-color 600000s 0s, color 600000s 0s;
 }

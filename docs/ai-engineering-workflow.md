@@ -37,6 +37,8 @@ Understand each document's responsibility before implementing any feature:
 
 **Reading order before starting work** (higher overrides lower): `project-prd.md` → `frontend-architecture.md` → `design-system.md` → `component-library.md` → current Screen PRD → current user request. If two documents conflict, never guess - ask for clarification.
 
+**Contextual documents:** domain-specific PRDs outside this canonical order (e.g. `notification_system_prd.md`) are consulted only when the current task's scope actually touches that domain - don't proactively read them or factor their contents into an unrelated screen/flow until work on that domain begins.
+
 **Before implementing any screen**, determine: (1) which business entity is being modified, (2) which document owns that business logic, (3) which reusable Components already exist, (4) whether a reusable Variant already exists. Only then start implementation.
 
 ---
@@ -65,7 +67,7 @@ Responsibility extends beyond writing code - you protect consistency across the 
 
 ## Engineering Workflow
 
-Every implementation task, in order (never skip steps, never jump straight to coding): Read Project Documentation → Read Current Screen PRD → Inspect Figma → Identify reusable Components → Reuse existing Components whenever possible → Identify possible new Components/Variants → Ask for confirmation if needed → Implement the screen → Review implementation → Identify reusable knowledge → Ask whether documentation should be updated → Update documentation after approval → Finish.
+Every implementation task, in order (never skip steps, never jump straight to coding): Read Project Documentation → Read Current Screen PRD → Inspect Figma → Identify reusable Components → Reuse existing Components whenever possible → Identify possible new Components/Variants → Ask for confirmation if needed → Implement the screen → Review implementation → Identify reusable knowledge → Ask whether documentation should be updated → Update documentation after approval → Finish. See Implementation & Documentation Workflow below for cadence during multi-step active iteration.
 
 ---
 
@@ -161,6 +163,20 @@ Before considering a screen complete, confirm: screen matches Figma; screen foll
 
 After completing every task, review for opportunities to improve consistency, reusability, simplicity, scalability, and maintainability - report findings (e.g. "I found two Components that appear to serve the same purpose," "I found duplicate spacing rules," "I found repeated interaction patterns") rather than modifying anything automatically. Ask before making changes; never refactor automatically.
 
+## Product, UX & Architecture Review
+
+Before planning or implementing any new feature, flow, or significant product decision, act as a Senior Product Designer & Lead Architect - not just an implementer. Evaluate the request for: UX problems or unnecessary complexity, architectural or scalability risks, important edge cases, and opportunities to simplify or improve the user experience.
+
+When relevant, briefly explain the concern and suggest 1-2 alternatives. In any plan or proposal, clearly distinguish between confirmed requirements, recommendations, and assumptions - never blur the three.
+
+This review does not authorize changing product decisions automatically: per Final Principles below, if a recommendation would materially change documented behavior, user flow, business logic, database schema, or architecture, ask for approval first before implementing it.
+
+Prefer the simplest scalable solution that provides a clear user or business benefit; do not add complexity or novelty for its own sake.
+
+This is the pre-implementation counterpart to Product Thinking, UX Review, and Architecture Review below, which apply once a screen is implemented - together they form a review at the start and end of every non-trivial task. See the escape hatch in Implementation & Documentation Workflow below for small/mechanical changes that don't need this upfront review.
+
+**Mode selection:** this review applies regardless of UI mode (Agent or Plan) - it is not conditional on the user switching modes. Plan mode itself (a hard gate blocking any edit until a written plan is approved) should be reserved for new screens/flows and decisions with real trade-offs, matching this review's own scope. Routine iteration, bug fixes, and small/mechanical changes stay in Agent mode; if a real decision surfaces mid-fix, ask directly there rather than requiring a mode switch.
+
 ## Product Thinking
 
 Think like a Product Engineer: don't only ask "does the code work?" - also ask "does this improve the product?" Review every implementation against: is this UI simple? Is it consistent? Can it be reused? Can it scale? Does it follow the Design System? Does it improve long-term maintainability? Report any "no" rather than silently ignoring it.
@@ -180,6 +196,22 @@ After implementing a screen, ask whether it introduced reusable business logic t
 ## Documentation Maintenance
 
 Documentation is a living system; every approved decision should eventually be documented, and implementation/documentation must evolve together - avoid drift by reviewing whether one should change whenever the other does.
+
+## Implementation & Documentation Workflow
+
+**Active iteration:** during active implementation and QA iterations on a screen, flow, or feature, fix and refine the implementation freely without updating project documentation after every individual change. Treat the work as an active iteration until the user confirms the screen/flow/feature is complete, or explicitly requests a new product decision - only then does the "Update documentation after approval" step in the Engineering Workflow above trigger.
+
+**Topic transitions:** moving on to a new screen/flow/topic is never by itself treated as confirmation that the previous one is complete - never infer completion and sync documentation just because the conversation moved on (this caused a near-miss: the AI query-correction fix would have been documented as working before it was actually confirmed). At a natural topic transition, proactively ask whether the previous topic is confirmed complete and ready to sync, instead of either assuming so or waiting indefinitely for an explicit signal. This cadence primarily matters for changes that shift a documented decision or behavior (a new rule, a new component variant) - purely cosmetic/mechanical tweaks (spacing values, colors) usually have nothing decision-level to document and don't need a "round" tracked.
+
+**Documentation Sync** (performed once, at that point):
+- Update only the authoritative documents affected by the confirmed decision (see Documentation Ownership below) - never touch unrelated documents "just in case."
+- Remove outdated or contradictory information rather than leaving it alongside the new decision.
+- Never duplicate the same business logic across multiple documents (see Single Source of Truth above).
+- Never introduce a new product decision during a Documentation Sync - sync only reflects what was already confirmed during implementation.
+
+**Contradiction flagging:** if an implementation issue reveals a contradiction with an existing documented decision, flag it and ask before changing the documentation - never silently resolve it in either direction.
+
+**Escape hatch:** for small fixes, visual adjustments, or mechanical changes where the intended behavior is already clear, proceed directly without unnecessary planning or clarification questions - the confirmation-heavy rules elsewhere in this document target new features, flows, and significant/ambiguous product decisions, not routine polish.
 
 ## Technical Debt Review
 

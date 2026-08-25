@@ -127,6 +127,37 @@ componentsclienthome
 
 ---
 
+# Multi-Step Flow Pattern (Orchestrator + Step Components)
+
+Any flow that walks a user through multiple sequential screens inside one shared container (e.g. a Bottom Sheet) must be split into:
+
+- **One orchestrator component** (e.g. `BookingFlowSheet`) - owns the phase/step state machine, the back-navigation history stack, and all draft data collected so far across steps. Renders the shared shell and decides which step component is shown for the current phase.
+- **One component per step screen** (e.g. `SchedulingDateStep`, `SearchMatchStep`) - presentation-only. Receives already-known data plus `onNext`/`onPrevious` callbacks as props, owns only local/transient UI state (e.g. the currently-selected pill before "הבא" is pressed), and never manages navigation or holds data belonging to other steps.
+- **Shared step chrome** (e.g. `BookingStepFooter`) reused by every step component in the flow instead of being rebuilt per step.
+
+Reference implementation: `src/components/client/booking/BookingFlowSheet.tsx` (orchestrator) with `SchedulingDateStep.tsx`, `SchedulingHourStep.tsx`, `SearchMatchStep.tsx`, `BookingMessageStep.tsx` (step components) and `BookingStepFooter.tsx` (shared footer) - see `component-library.md` for the current list of built steps.
+
+Any future multi-step flow (e.g. a professional-side job flow) must follow this same split - never build one monolithic component that mixes navigation/state-machine logic with per-screen presentation.
+
+---
+
+# Backend SQL (Supabase)
+
+This repo has no local Supabase migrations set up yet. Until that exists, hand-authored SQL that needs to be applied directly in the Supabase SQL editor (RLS policies, Postgres functions) lives in `supabase/sql/`, one file per feature (e.g. `supabase/sql/booking_flow_auth.sql`), reviewed the same as any other code change but not run automatically. Revisit this once a real migrations workflow (`supabase db push` or similar) is set up for the project.
+
+---
+
+# Phone Auth / OTP Provider (Supabase Auth → Twilio)
+
+**Decision (confirmed):** keep real SMS-based OTP verification for Step 5 (Authentication) rather than an unverified/skip-verification phone flow. An unverified phone number is free but lets anyone submit jobs under any number, which is a marketplace-trust and spam risk (fake jobs sent to real professionals, no reliable way to reach the client) - not worth the SMS cost saved. Supabase Auth's phone provider requires a third-party SMS gateway; **Twilio** is the one it integrates with directly from the dashboard.
+
+- **Twilio trial accounts expire 30 days after signup** (the clock starts at signup, not at first use) - trial resources stop working after that until the account is upgraded (payment method added). Because of this, **don't create the Twilio account far in advance of needing it**: set it up (free, ~10 min, no credit card required to sign up) only once there's an actual need to test/demo the live OTP flow, not the moment the code is ready. Until then, the Authentication step's "שלח קוד" simply surfaces a graceful inline error (already handled) if tapped with no SMS provider configured - it does not block building/testing any other part of the flow.
+- Once set up, Supabase's **"Test Phone Numbers and OTPs"** setting (Authentication → Providers → Phone) can map real tester numbers to a fixed code (e.g. `123456`) so day-to-day testing sends no real SMS and costs nothing per-message - it still requires a Twilio account configured (even trial) since Supabase won't enable the Phone provider at all without one.
+- **Before real users / production launch:** upgrade the Twilio account to a **paid account** (pay-as-you-go, no monthly minimum - cost is per SMS, roughly $0.01-0.05/message depending on destination) and re-enter the same credentials in Supabase; no app code changes needed, since `src/lib/auth.ts` only calls `supabase.auth.signInWithOtp` / `verifyOtp` and never talks to Twilio directly.
+- Revisit pricing/volume once real usage data exists - if OTP costs become significant at scale, cheaper alternatives (WhatsApp OTP, other regional gateways) can be swapped in Supabase's dashboard without touching the booking flow code.
+
+---
+
 # Business Logic Rules
 
 - Keep fetching and business logic outside primitive UI components
@@ -306,7 +337,24 @@ Also document how the Component occupies space and adapts to different content s
 - All screens are mobile-first
 - Desktop should simulate a centered mobile app layout
 - Use max-width 480px for app container on desktop
+- No shadow/border around the centered column beyond 480px (confirmed 2026-08-16, reversing an earlier "simulate a mobile app inside a web page" shadow) - just the plain `bg-surface-bg` page background on both sides.
 - Keep bottom navigation always visible on mobile layouts
+
+---
+
+# Portrait-Only Guard
+
+**Decision (confirmed 2026-08-16):** the app should not visually respond to landscape rotation on real phones/tablets - instead of stretching into a wide layout, a full-screen "rotate back to portrait" overlay is shown, and the underlying app stays mounted/unaffected.
+
+- **Why CSS-only, not the Screen Orientation API:** `screen.orientation.lock()` can only lock orientation for a page running in Fullscreen mode (`requestFullscreen()`) - it throws/no-ops for a normal browser tab, and iOS Safari doesn't support it at all even then. A regular mobile web app (not an installed, fullscreen PWA) cannot force-lock device rotation. The CSS overlay approach is the standard fallback used by production mobile web apps and needs no permissions or fullscreen prompt.
+- **Implementation:** a single `.rotate-guard` element in `src/app/layout.tsx` (global, not per-page), toggled purely via a CSS media query in `globals.css`:
+  ```css
+  @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+    .rotate-guard { display: flex; }
+  }
+  ```
+- **Why `(hover: none) and (pointer: coarse)` and not just `(orientation: landscape)`:** the orientation query alone would also fire for an ordinary desktop browser window (any window wider than it is tall counts as "landscape"), hiding the app for every desktop/wide-window visitor. Combining it with "coarse pointer, no hover" scopes it to real touchscreen devices only - desktop is unaffected regardless of window shape.
+- Copy: `shared.rotateDevice.message` (see `copy-deck.md`).
 
 ---
 
