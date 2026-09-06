@@ -61,6 +61,15 @@
           "optionRetry": "נסה שוב",
           "optionSchedule": "קבע למועד אחר"
         }
+      },
+      "scheduled": {
+        "requestSent": "ההזמנה שלך למועד שנבחר נשלחה לבעלי מקצוע באזור",
+        "searchCheckpoint": "עדיין מחפשים בעל מקצוע פנוי למועד שבחרת",
+        "searchExpired": {
+          "message": "לא מצאנו בעל מקצוע פנוי למועד שבחרת",
+          "optionRetry": "נסה שוב",
+          "optionSchedule": "קבע למועד אחר"
+        }
       }
     },
     "professional": {
@@ -138,7 +147,8 @@
     },
     "jobCreated": {
       "heading": "ההזמנה נשלחה בהצלחה!",
-      "subtext": "נעדכן אותך כשבעל מקצוע יאשר את ההזמנה",
+      "subtextNearTerm": "נעדכן אותך תוך רבע שעה אם בעל מקצוע אישר את ההזמנה",
+      "subtextScheduled": "נעדכן אותך תוך שעה אם בעל מקצוע אישר את ההזמנה",
       "closeAction": "לדף הבית"
     },
     "submitFailed": {
@@ -206,23 +216,22 @@
       "heading": "לאיזו כתובת לשלוח את ההזמנה?",
       "subheading": "בחר כתובת שמורה, או הוסף כתובת חדשה",
       "addNewLabel": "הוסף כתובת חדשה",
-      "continueLabel": "המשך לביצוע ההזמנה",
+      "next": "הבא",
       "backLabel": "חזור",
       "newHeading": "כתובת חדשה",
       "newSubheading": "למי שאתה מזמין עבורו, אם שונה ממך",
       "saveNewAddress": "שמור כתובת",
       "contactNameLabel": "איש קשר בכתובת (אופציונלי)",
       "contactPhoneLabel": "טלפון איש קשר (אופציונלי)",
+      "contactFieldsHintFirstTime": "מולאו מראש עם הפרטים שלך - אפשר לשנות אותם אם הכתובת הזו עבור מישהו אחר.",
       "otherContactLimitReached": "אפשר לשמור עד {max} כתובות עבור אנשים אחרים.",
-      "totalAddressLimitReached": "אפשר לשמור עד {max} כתובות בסך הכל.",
+      "totalAddressLimitReached": "אפשר לשמור עד {max} כתובות בסך הכל. לשינוי המכסה יש לפנות לשירות הלקוחות.",
       "editLinkLabel": "ערוך",
       "editHeading": "עריכת כתובת",
-      "editSubheading": "אפשר לעדכן מספר בית, דירה או קוד כניסה. אפשר גם להוסיף שם או טלפון של איש קשר אם עדיין לא הוגדרו – אך לא להחליף איש קשר קיים. לשינוי רחוב או עיר יש להוסיף כתובת חדשה.",
+      "editSubheading": "אפשר לערוך כל שדה כל עוד לא נשלחה הזמנה כשהוא ממולא. אחרי השליחה אי אפשר לשנות אותו. קוד כניסה לבניין אפשר לעדכן תמיד.",
       "updateAddress": "עדכן כתובת",
-      "deleteAriaLabel": "מחק כתובת",
-      "deleteConfirmLabel": "מחק",
-      "deleteCancelLabel": "ביטול",
-      "deleteError": "לא ניתן היה למחוק את הכתובת. נסה שוב."
+      "addAddressError": "לא הצלחנו לשמור את הכתובת. נסה שוב.",
+      "updateAddressError": "לא הצלחנו לעדכן את הכתובת. נסה שוב."
     }
   }
 }

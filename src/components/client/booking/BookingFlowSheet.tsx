@@ -17,12 +17,17 @@ import {
   NewUserDetailsStep,
   type NewUserDetailsValues,
 } from "@/components/client/booking/NewUserDetailsStep";
-import { ChooseAddressStep, type AddressEditValues } from "@/components/client/booking/ChooseAddressStep";
+import { ChooseAddressStep } from "@/components/client/booking/ChooseAddressStep";
 import { ConfirmStep } from "@/components/client/booking/ConfirmStep";
 import type { OrderRecapProps } from "@/components/client/booking/OrderRecap";
 import { fetchUserBasicProfile, getBookingSession, hasUserProfile, type UserBasicProfile } from "@/lib/auth";
 import { fetchDiagnosisPlaceholderServiceId } from "@/lib/queries/services";
-import { fetchAddressUsageCounts, fetchUserAddresses, type AddressUsageCounts } from "@/lib/queries/addresses";
+import {
+  fetchAddressIdsWithJobs,
+  fetchAddressUsageCounts,
+  fetchUserAddresses,
+  type AddressUsageCounts,
+} from "@/lib/queries/addresses";
 import { CITIES } from "@/lib/addresses";
 import { COPY } from "@/lib/copy";
 import { NO_MATCH_OPTION_ID, type MatchOutcomeKind } from "@/lib/ai/matchTypes";
@@ -70,11 +75,12 @@ export interface BookingFlowSheetProps {
 }
 
 /**
- * Human-readable one-line address for `OrderRecap.profile`. Takes
- * `AddressOnlyValues` (not full `NewUserDetailsValues`) so it also covers
- * `pendingNewAddress` (an existing profile adding a second address via
- * `ChooseAddressStep`) - `NewUserDetailsValues` satisfies this shape too,
- * so the brand-new-profile call site below is unaffected.
+ * Human-readable one-line address for `OrderRecap.profile`, used only for
+ * the brand-new-profile population (`NewUserDetailsValues` satisfies
+ * `AddressOnlyValues`'s shape). A returning profile's address always comes
+ * from `formatSavedAddressLine` below instead, since it's a real `Address`
+ * row by the time `ConfirmStep` ever needs it (see this component's doc
+ * comment on immediate persistence).
  */
 function formatAddressLine(fields: AddressOnlyValues): string {
   const cityLabel = CITIES.find((city) => city.value === fields.city)?.label ?? "";
@@ -121,11 +127,14 @@ function formatSavedAddressLine(address: Address): string {
  * → Attachments (one screen, notes + photos both always visible - see
  * AttachmentsStep) → Authentication (Step 5, skipped if a session already
  * exists on this device) → New User Details (Step 6, skipped if the
- * verified/known phone already has a `public.users` profile) → Confirm
- * (Step 7, always the final screen for every path - see "Submission" in
- * that PRD). `session`/`hasProfile` below decide which of Attachments/
- * Authentication/New User Details ends up being the last *content* screen
- * before Confirm; see `buildRecap`/`submitBooking`. Confirm is the only
+ * verified/known phone already has a `public.users` profile) → Choose
+ * Address (added 2026-09-03 as an automatic forward step, skipped unless
+ * the returning profile has more than one saved address at all - see
+ * `finishChooseAddress`'s doc comment) → Confirm (Step 7, always the final
+ * screen for every path - see "Submission" in that PRD). `session`/
+ * `hasProfile` below decide which of Attachments/Authentication/New User
+ * Details ends up being the last *content* screen before Confirm/Choose
+ * Address; see `buildRecap`/`submitBooking`. Confirm is the only
  * screen that ever renders `OrderRecap` or shows the `"שלח הזמנה"` button -
  * an earlier version rendered the recap inline at the bottom of whichever
  * of Attachments/Authentication was last, but that combined layout doesn't
@@ -181,7 +190,7 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * like `hasProfile`, not per-order - not cleared by `reset()`.
    */
   const [returningProfile, setReturningProfile] = useState<UserBasicProfile | null>(null);
-  /** All addresses the returning profile has saved (`ChooseAddressStep`'s list), most-recently-used first. */
+  /** All addresses the returning profile has saved (`ChooseAddressStep`'s list), oldest/first-added first (added 2026-09-03, see `fetchUserAddresses`'s doc comment) - stable order, independent of `is_default`. */
   const [addresses, setAddresses] = useState<Address[]>([]);
   /**
    * Cumulative counts backing `ChooseAddressStep`'s two caps (added
@@ -192,28 +201,14 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     totalAddressesCount: 0,
     otherContactsCount: 0,
   });
+  /**
+   * Which addresses have ever actually been used in a submitted job (added
+   * 2026-09-01) - see `fetchAddressIdsWithJobs`'s doc comment. Backs
+   * `ChooseAddressStep`'s contact-field lock UI.
+   */
+  const [addressIdsWithJobs, setAddressIdsWithJobs] = useState<Set<string>>(new Set());
   /** Which saved address (by id) the current order will use - seeded to the default on load, changeable via `ChooseAddressStep`. */
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  /**
-   * A brand-new address staged for an *existing* profile via
-   * `ChooseAddressStep`'s "add new" view - the returning-population
-   * equivalent of `pendingProfileFields`'s address fields. Per-order draft
-   * state, cleared by `reset()`.
-   */
-  const [pendingNewAddress, setPendingNewAddress] = useState<AddressOnlyValues | undefined>(undefined);
-  /**
-   * A staged edit of one of `addresses`' already-saved rows, via
-   * `ChooseAddressStep`'s per-row "ערוך" link (added 2026-08-24) - mutually
-   * exclusive with `pendingNewAddress` (editing an existing row vs. adding
-   * one), same per-order-draft lifecycle. `buildingNumber`/`apartment`/
-   * `entranceCode` are always staged here; `contactName`/`contactPhone` only
-   * when the address being edited had no contact yet - see
-   * `AddressEditValues`'s doc comment and `submit_booking`'s "Edit path"
-   * comment for why.
-   */
-  const [pendingAddressEdit, setPendingAddressEdit] = useState<({ addressId: string } & AddressEditValues) | undefined>(
-    undefined
-  );
   /** The phone last sent a code, needed by `verifyOtp` - AuthenticationStep only exposes it via `onSendCode`'s argument. */
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -221,6 +216,17 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
   const [pendingProfileFields, setPendingProfileFields] = useState<NewUserDetailsValues | undefined>(
     undefined
   );
+  /**
+   * Which SLA the "job_created" screen promises (see `project-prd.md` §5
+   * "Scheduled Job Matching," confirmed 2026-09-06) - set once, at the
+   * moment `submitBooking` succeeds, from that same call's own
+   * `recap.scheduledTime` vs. submission time; never recomputed from
+   * `selectedDate`/`selectedHour` later, so it can't drift even if those
+   * somehow changed before this phase's render (they don't, in practice -
+   * nothing else in this component touches them once the sheet shows the
+   * confirmation screen).
+   */
+  const [jobCreatedTier, setJobCreatedTier] = useState<"nearTerm" | "scheduled">("nearTerm");
 
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
 
@@ -240,8 +246,6 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     setPendingPhone(null);
     setSubmitting(false);
     setPendingProfileFields(undefined);
-    setPendingNewAddress(undefined);
-    setPendingAddressEdit(undefined);
     // `session`/`hasProfile`/`returningProfile`/`addresses`/`selectedAddressId`
     // deliberately survive a reset - they're device/profile-level, same
     // reasoning as `hasProfile` already not being cleared here (see
@@ -255,9 +259,9 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * is what actually populates `ConfirmStep`'s recap for that population -
    * see `buildRecap`). Called once profile existence is confirmed
    * (`checkAuth`, `handleVerifyCode`) and again after every successful
-   * submission or address deletion (`submitBooking`, `handleDeleteAddress`)
-   * so the just-changed default/address list/usage counts are reflected
-   * immediately if another order follows in the same session.
+   * submission (`submitBooking`) so the just-changed default/address
+   * list/usage counts are reflected immediately if another order follows
+   * in the same session.
    *
    * `ownPhone` is taken as a parameter (not read from `session` state)
    * because every call site already has the just-resolved session/phone in
@@ -265,18 +269,45 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * from this `useCallback`'s empty dependency array.
    */
   const loadReturningProfile = useCallback(async (userId: string, ownPhone?: string | null) => {
-    const [profile, userAddresses, counts] = await Promise.all([
+    const [profile, userAddresses, counts, usedAddressIds] = await Promise.all([
       fetchUserBasicProfile(userId),
       fetchUserAddresses(userId),
       fetchAddressUsageCounts(userId, ownPhone),
+      fetchAddressIdsWithJobs(userId),
     ]);
     setReturningProfile(profile);
     setAddresses(userAddresses);
     setUsageCounts(counts);
+    setAddressIdsWithJobs(usedAddressIds);
     const defaultAddress = userAddresses.find((address) => address.is_default) ?? userAddresses[0] ?? null;
     setSelectedAddressId(defaultAddress?.id ?? null);
-    setPendingNewAddress(undefined);
-    setPendingAddressEdit(undefined);
+    // Returned (added 2026-09-03) so a caller deciding whether to route
+    // through `choose_address` first (see "More than one saved address"
+    // below) doesn't have to wait a render cycle for `addresses` state to
+    // reflect what was just fetched.
+    return userAddresses;
+  }, []);
+
+  /**
+   * Re-fetches just the address-book slice of `loadReturningProfile` above
+   * (added 2026-09-01, alongside immediate persistence) - called right
+   * after `add_address`/`update_address` succeeds, so `addresses`/
+   * `usageCounts`/`addressIdsWithJobs` reflect the just-saved change
+   * immediately. Deliberately does NOT touch `returningProfile` or
+   * `selectedAddressId` - unlike `loadReturningProfile`, this never runs at
+   * the start of a session, only mid-flow after a save, and the caller
+   * (`onSaveNewAddress`/`onSaveEdit` below) decides what `selectedAddressId`
+   * should become next, not this helper.
+   */
+  const refreshAddressBook = useCallback(async (userId: string, ownPhone?: string | null) => {
+    const [userAddresses, counts, usedAddressIds] = await Promise.all([
+      fetchUserAddresses(userId),
+      fetchAddressUsageCounts(userId, ownPhone),
+      fetchAddressIdsWithJobs(userId),
+    ]);
+    setAddresses(userAddresses);
+    setUsageCounts(counts);
+    setAddressIdsWithJobs(usedAddressIds);
   }, []);
 
   /** Advance to a new phase, remembering the phase being left so "הקודם" can return to it. */
@@ -313,6 +344,30 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       if (target !== undefined) setPhase(target);
       return remaining;
     });
+  };
+
+  /**
+   * Returns from `choose_address` to `confirm` (added 2026-09-03,
+   * alongside routing a more-than-one-saved-address returning profile
+   * through this screen before `confirm` is ever shown - see "More than
+   * one saved address" below). Two different situations land on this
+   * screen, needing opposite `history` handling to keep "הקודם" correct
+   * either way:
+   *   - Reached via `ConfirmStep`'s "שנה כתובת" - `confirm` is already the
+   *     entry directly beneath this one on `history`, so pop back to it
+   *     with `handlePrevious()`, exactly as before "שנה כתובת" existed.
+   *   - Reached as a genuine forward step (multiple saved addresses,
+   *     right after authentication/attachments, `confirm` never shown
+   *     yet this order) - `advanceTo("confirm")` instead, a real forward
+   *     move that leaves `choose_address` (and everything beneath it) on
+   *     `history` for "הקודם" to unwind correctly afterward.
+   */
+  const finishChooseAddress = () => {
+    if (history[history.length - 1] === "confirm") {
+      handlePrevious();
+    } else {
+      advanceTo("confirm");
+    }
   };
 
   useEffect(() => {
@@ -470,25 +525,12 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     const scheduledTime = selectedDate ? new Date(selectedDate) : new Date();
     if (selectedHour !== null) scheduledTime.setHours(selectedHour, 0, 0, 0);
 
-    const selectedAddress = addresses.find((address) => address.id === selectedAddressId) ?? null;
-    // Reflects a staged-but-not-yet-submitted edit (`ChooseAddressStep`'s
-    // "ערוך" link) immediately, same as `pendingNewAddress` already does
-    // for a brand-new address - see `pendingAddressEdit`'s doc comment.
-    // `contact_name`/`contact_phone` only ever come from the staged edit
-    // when the address had none to begin with (see `AddressEditValues`'s
-    // doc comment), so falling back to the saved value is always a no-op
-    // in the one case it could otherwise overwrite something.
-    const effectiveAddress =
-      selectedAddress && pendingAddressEdit?.addressId === selectedAddress.id
-        ? {
-            ...selectedAddress,
-            building_number: pendingAddressEdit.buildingNumber,
-            apartment: pendingAddressEdit.apartment || null,
-            entrance_code: pendingAddressEdit.entranceCode || null,
-            contact_name: selectedAddress.contact_name ?? pendingAddressEdit.contactName ?? null,
-            contact_phone: selectedAddress.contact_phone ?? pendingAddressEdit.contactPhone ?? null,
-          }
-        : selectedAddress;
+    // Always already fully up to date (added/edited addresses persist
+    // immediately via `add_address`/`update_address`, refreshed into
+    // `addresses` by `refreshAddressBook` the moment either succeeds) - no
+    // separate staged-edit/staged-new-address merge is needed here anymore
+    // (removed 2026-09-01; see this component's doc comment).
+    const effectiveAddress = addresses.find((address) => address.id === selectedAddressId) ?? null;
     const profile = profileFields
       ? {
           fullName: `${profileFields.firstName} ${profileFields.lastName}`.trim(),
@@ -497,13 +539,9 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       : returningProfile
         ? {
             fullName: `${returningProfile.firstName} ${returningProfile.lastName}`.trim(),
-            addressLine: pendingNewAddress
-              ? formatAddressLine(pendingNewAddress)
-              : effectiveAddress
-                ? formatSavedAddressLine(effectiveAddress)
-                : "",
-            contactName: pendingNewAddress ? pendingNewAddress.contactName : effectiveAddress?.contact_name,
-            contactPhone: pendingNewAddress ? pendingNewAddress.contactPhone : effectiveAddress?.contact_phone,
+            addressLine: effectiveAddress ? formatSavedAddressLine(effectiveAddress) : "",
+            contactName: effectiveAddress?.contact_name,
+            contactPhone: effectiveAddress?.contact_phone,
           }
         : undefined;
 
@@ -536,31 +574,30 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * `supabase/sql/diagnosis_placeholder_services.sql`.
    *
    * `p_address_id` (added 2026-08-23, see `supabase/sql/address_book.sql`)
-   * is only sent when neither `profileFields` nor `pendingNewAddress` is
-   * set - i.e. a returning profile reusing one of its already-saved
-   * addresses rather than creating a new one via either path.
-   *
-   * `pendingAddressEdit` (added 2026-08-24) is the third case sharing that
-   * same `p_address_id` slot: a returning profile reusing an existing
-   * address but with `buildingNumber`/`apartment`/`entranceCode` staged
-   * changes, and optionally a `contactName`/`contactPhone` filled in for
-   * the first time (never city/street, and never a *replacement* contact -
-   * see `AddressEditValues`'s doc comment). It's what makes
-   * `p_building_number` non-null alongside `p_address_id`, which is
-   * exactly the signal `submit_booking`'s "Edit path" branch keys off - see
-   * that comment for the full server-side reasoning.
+   * is only sent for a returning profile - simplified 2026-09-01, alongside
+   * immediate persistence: by the time `ConfirmStep` is reached, any new or
+   * edited address has already been saved via `add_address`/`update_address`
+   * (see `onSaveNewAddress`/`onSaveEdit` below), so `selectedAddressId`
+   * always already points at a real, fully-formed row - `submit_booking`
+   * no longer needs to create or edit anything for a returning profile,
+   * only look it up.
    */
   const submitBooking = async (profileFields?: NewUserDetailsValues) => {
     setPendingProfileFields(profileFields);
     setSubmitting(true);
 
     const recap = buildRecap(profileFields);
-    const newAddressFields = profileFields ?? pendingNewAddress;
-    const editingSelected =
-      !newAddressFields && pendingAddressEdit?.addressId === selectedAddressId ? pendingAddressEdit : null;
-    const cityLabel = newAddressFields
-      ? (CITIES.find((city) => city.value === newAddressFields.city)?.label ?? null)
-      : null;
+    const cityLabel = profileFields ? (CITIES.find((city) => city.value === profileFields.city)?.label ?? null) : null;
+    // Near-term tier threshold: 2 hours - see `project-prd.md` §5 "Scheduled
+    // Job Matching." Computed from this same call's `recap.scheduledTime`
+    // against `flowNow` (frozen per session, see its own doc comment above)
+    // rather than a fresh `Date.now()`/`new Date()` call here - consistent
+    // with this file's one other "now" usage (`handleDateSelected`'s
+    // `getHourSlots(date, flowNow)`), and avoids the impure-call-in-render
+    // lint rule that a raw `Date.now()` trips even inside an event handler
+    // closure like this one.
+    const tier: "nearTerm" | "scheduled" =
+      recap.scheduledTime.getTime() - flowNow.getTime() < 2 * 60 * 60 * 1000 ? "nearTerm" : "scheduled";
 
     try {
       const { error } = await supabase.rpc("submit_booking", {
@@ -570,13 +607,11 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
         p_first_name: profileFields?.firstName ?? null,
         p_last_name: profileFields?.lastName ?? null,
         p_city: cityLabel,
-        p_street: newAddressFields?.street ?? null,
-        p_building_number: newAddressFields?.buildingNumber ?? editingSelected?.buildingNumber ?? null,
-        p_apartment: newAddressFields?.apartment || editingSelected?.apartment || null,
-        p_entrance_code: newAddressFields?.entranceCode || editingSelected?.entranceCode || null,
-        p_address_id: newAddressFields ? null : selectedAddressId,
-        p_contact_name: pendingNewAddress?.contactName || editingSelected?.contactName || null,
-        p_contact_phone: pendingNewAddress?.contactPhone || editingSelected?.contactPhone || null,
+        p_street: profileFields?.street ?? null,
+        p_building_number: profileFields?.buildingNumber ?? null,
+        p_apartment: profileFields?.apartment || null,
+        p_entrance_code: profileFields?.entranceCode || null,
+        p_address_id: profileFields ? null : selectedAddressId,
       });
 
       if (error) {
@@ -594,6 +629,7 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       if (session) {
         void loadReturningProfile(session.user.id, session.user.phone);
       }
+      setJobCreatedTier(tier);
       setPhase("job_created");
     } catch (err) {
       console.error("submit_booking threw:", err);
@@ -603,34 +639,20 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     }
   };
 
-  /**
-   * Soft-deletes one saved address (added 2026-08-25, `ChooseAddressStep`'s
-   * per-row trash icon - see `delete_address` in
-   * supabase/sql/address_book.sql for the full reasoning). Refreshes the
-   * address list/usage counts/default selection via `loadReturningProfile`
-   * on success, same as after a submission - e.g. if the deleted row was
-   * `is_default`, this immediately reflects whichever row `delete_address`
-   * promoted in its place.
-   */
-  const handleDeleteAddress = async (addressId: string): Promise<string | null> => {
-    if (!session) return COPY.bookingFlow.chooseAddress.deleteError;
-
-    const { error } = await supabase.rpc("delete_address", { p_address_id: addressId });
-    if (error) {
-      console.error("delete_address error:", error);
-      return COPY.bookingFlow.chooseAddress.deleteError;
-    }
-
-    await loadReturningProfile(session.user.id, session.user.phone);
-    return null;
-  };
-
   const handleAttachmentsNext = (noteValue: string, photosValue: File[]) => {
     setNote(noteValue);
     setPhotos(photosValue);
 
     if (session && hasProfile) {
-      advanceTo("confirm");
+      // More than one saved address (confirmed 2026-09-03 - counts every
+      // saved address, even one only saved and never yet submitted with
+      // an order): route through the picker first rather than silently
+      // reusing whichever one happens to be `is_default` - a customer who
+      // doesn't carefully read `ConfirmStep`'s address line could easily
+      // send an order to the wrong place without ever meaning to. Exactly
+      // one address is still a non-choice, so it goes straight to
+      // `confirm` as before.
+      advanceTo(addresses.length > 1 ? "choose_address" : "confirm");
       return;
     }
 
@@ -683,10 +705,14 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
 
       const profileExists = await hasUserProfile(newSession.user.id);
       setHasProfile(profileExists);
-      if (profileExists) {
-        await loadReturningProfile(newSession.user.id, newSession.user.phone);
-      }
-      advanceTo(profileExists ? "confirm" : "new_user_details");
+      // `userAddresses` (the just-fetched array, not `addresses` state -
+      // see `loadReturningProfile`'s doc comment) decides whether to
+      // route through `choose_address` first - same "more than one saved
+      // address" rule as `handleAttachmentsNext` above.
+      const userAddresses = profileExists
+        ? await loadReturningProfile(newSession.user.id, newSession.user.phone)
+        : [];
+      advanceTo(!profileExists ? "new_user_details" : userAddresses.length > 1 ? "choose_address" : "confirm");
       return null;
     } catch (err) {
       console.error("verifyOtp threw:", err);
@@ -802,39 +828,75 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       {phase === "choose_address" ? (
         <ChooseAddressStep
           addresses={addresses}
-          selection={pendingNewAddress ? "new" : (selectedAddressId ?? "new")}
-          pendingNewAddress={pendingNewAddress}
-          pendingAddressEdit={pendingAddressEdit}
+          selection={selectedAddressId ?? "new"}
           ownPhone={session?.user.phone}
+          ownName={returningProfile ? `${returningProfile.firstName} ${returningProfile.lastName}`.trim() : undefined}
+          ownFirstName={returningProfile?.firstName}
+          ownLastName={returningProfile?.lastName}
+          addressIdsWithJobs={addressIdsWithJobs}
           usageCounts={usageCounts}
           onChooseExisting={(addressId) => {
             setSelectedAddressId(addressId);
-            setPendingNewAddress(undefined);
-            setPendingAddressEdit(undefined);
-            handlePrevious();
+            finishChooseAddress();
           }}
-          onSaveNewAddress={(values) => {
-            setPendingNewAddress(values);
-            setSelectedAddressId(null);
-            setPendingAddressEdit(undefined);
-            handlePrevious();
+          onSaveNewAddress={async (values) => {
+            if (!session) return COPY.bookingFlow.chooseAddress.addAddressError;
+            const cityLabel = CITIES.find((city) => city.value === values.city)?.label ?? null;
+            const { data, error } = await supabase.rpc("add_address", {
+              p_city: cityLabel,
+              p_street: values.street,
+              p_building_number: values.buildingNumber,
+              p_apartment: values.apartment || null,
+              p_entrance_code: values.entranceCode || null,
+              p_contact_name: values.contactName || null,
+              p_contact_phone: values.contactPhone || null,
+            });
+            if (error || !data) {
+              console.error("add_address error:", error);
+              return COPY.bookingFlow.chooseAddress.addAddressError;
+            }
+            await refreshAddressBook(session.user.id, session.user.phone);
+            // Points straight at the just-created row - this is also what
+            // fixes the "עדכן כתובת from ConfirmStep lands on a blank form"
+            // bug: `selection` above simplifies to `selectedAddressId`, and
+            // a just-saved address is now a real row `ChooseAddressStep`
+            // can select in its list, not a staged draft with nowhere to
+            // reopen into.
+            setSelectedAddressId(data as string);
+            finishChooseAddress();
+            return null;
           }}
-          onSaveEdit={(addressId, values) => {
-            // No `handlePrevious()` here (added 2026-08-25) - the edit
-            // view's own footer now manages returning to the list mode
-            // itself (see ChooseAddressStep's doc comment); this only
-            // stages the change for whenever the list/Confirm eventually do
-            // exit.
-            setPendingAddressEdit({ addressId, ...values });
+          onSaveEdit={async (addressId, values) => {
+            if (!session) return COPY.bookingFlow.chooseAddress.updateAddressError;
+            const cityLabel = CITIES.find((city) => city.value === values.city)?.label ?? null;
+            const { error } = await supabase.rpc("update_address", {
+              p_address_id: addressId,
+              p_city: cityLabel,
+              p_street: values.street,
+              p_building_number: values.buildingNumber,
+              p_apartment: values.apartment || null,
+              p_entrance_code: values.entranceCode || null,
+              p_contact_name: values.contactName || null,
+              p_contact_phone: values.contactPhone || null,
+            });
+            if (error) {
+              console.error("update_address error:", error);
+              return COPY.bookingFlow.chooseAddress.updateAddressError;
+            }
+            await refreshAddressBook(session.user.id, session.user.phone);
             setSelectedAddressId(addressId);
-            setPendingNewAddress(undefined);
+            // No `handlePrevious()` here - the edit view's own footer
+            // already moves itself back to list mode on success (see
+            // `ChooseAddressStep`'s doc comment).
+            return null;
           }}
-          onDeleteAddress={handleDeleteAddress}
           onPrevious={history.length > 0 ? handlePrevious : undefined}
         />
       ) : null}
 
-      {phase === "job_created" ? <BookingMessageStep kind="jobCreated" onPrimaryAction={handleClose} /> : null}
+      {phase === "job_created" ? (
+        <BookingMessageStep kind="jobCreated" jobCreatedTier={jobCreatedTier} onPrimaryAction={handleClose} />
+      ) : null}
 
       {phase === "submit_failed" ? (
         <BookingMessageStep

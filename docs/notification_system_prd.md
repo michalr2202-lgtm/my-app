@@ -274,6 +274,39 @@ No blocking behavior
 
 ---
 
+### 5.14 Scheduled Job Request Sent (T+0)
+Applies only to jobs with a specific future date/time - see `project-prd.md` Section 5, "Scheduled Job Matching." Sent the moment the customer submits the request (parallel to 5.11, but without the "Now" flow's urgency framing - this is confirming receipt of a request for a chosen time, not an immediate one).
+
+Icon: send (Blue)  
+Copy key: `notification.customer.scheduled.requestSent`  
+Priority: normal (banner, no SMS)  
+
+---
+
+### 5.15 Scheduled Job Search Checkpoint (~30 min, far tier only)
+Applies only to the far tier of scheduled-job matching (scheduled start 2+ hours from submission) - see `project-prd.md` Section 5, "Scheduled Job Matching." The near-term tier has no separate checkpoint entry here since its 7-minute checkpoint is identical to 5.12 and reuses that same copy key.
+
+Icon: clock (Orange)  
+Copy key: `notification.customer.scheduled.searchCheckpoint`  
+Priority: normal (banner, no SMS)  
+
+---
+
+### 5.16 Scheduled Job Search Expired (no match by the applicable tier's deadline)
+Applies only to jobs with a specific future date/time - see `project-prd.md` Section 5, "Scheduled Job Matching." Fires at 15 minutes (near-term tier) or 1 hour (far tier, MVP-only number), whichever tier applied to that request.
+
+Icon: alert-circle (Orange)  
+Copy key: `notification.customer.scheduled.searchExpired.message`  
+
+Options:
+- Copy key: `notification.customer.scheduled.searchExpired.optionRetry`
+- Copy key: `notification.customer.scheduled.searchExpired.optionSchedule`
+
+Priority: normal (banner, no SMS)  
+No blocking behavior  
+
+---
+
 ## 6. Professional Notifications
 
 Copy for every notification below lives in `copy-deck.md` (section "Notification System" → "Professional Notifications"), addressed by key. This document defines only when/why each one fires.

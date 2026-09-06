@@ -40,6 +40,16 @@ export interface BookingMessageStepProps {
    * be shown to the user anywhere in the flow.
    */
   categoryLabel?: string | null;
+  /**
+   * Required for "jobCreated" - picks which SLA the subtext promises (see
+   * `project-prd.md` §5 "Scheduled Job Matching," confirmed 2026-09-06):
+   * `"nearTerm"` when the scheduled start is less than 2 hours from
+   * submission (`jobCreated.subtextNearTerm`, "תוך רבע שעה"), `"scheduled"`
+   * otherwise, including multi-day-out bookings (`jobCreated.subtextScheduled`,
+   * "תוך שעה" - an explicit MVP-only number, see that PRD section). Computed
+   * by `BookingFlowSheet` at the moment of submission, not re-derived here.
+   */
+  jobCreatedTier?: "nearTerm" | "scheduled";
 }
 
 /**
@@ -52,6 +62,7 @@ export function BookingMessageStep({
   onPrimaryAction,
   onPrevious,
   categoryLabel,
+  jobCreatedTier,
 }: BookingMessageStepProps) {
   const contentByKind: Record<BookingMessageKind, { heading: string; subtext: string; cta: string }> = {
     noProfessionals: {
@@ -78,7 +89,10 @@ export function BookingMessageStep({
     },
     jobCreated: {
       heading: COPY.bookingFlow.jobCreated.heading,
-      subtext: COPY.bookingFlow.jobCreated.subtext,
+      subtext:
+        jobCreatedTier === "scheduled"
+          ? COPY.bookingFlow.jobCreated.subtextScheduled
+          : COPY.bookingFlow.jobCreated.subtextNearTerm,
       cta: COPY.bookingFlow.jobCreated.closeAction,
     },
     submitFailed: {

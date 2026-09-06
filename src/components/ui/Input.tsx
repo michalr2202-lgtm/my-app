@@ -79,6 +79,15 @@ export function Input({
           label && !placeholderFullOpacity ? "placeholder:text-text-secondary/20" : "placeholder:text-text-secondary",
           "transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] focus:outline-none",
           error ? "border-notification-red" : "border-divider focus:border-brand-primary",
+          // Reverted 2026-09-03 (was briefly full-opacity-when-disabled for
+          // a few hours) - a locked field needs to visibly *look* locked,
+          // or a customer scanning the edit form for "what can I still fix"
+          // has no way to tell without tapping every field. A deliberate,
+          // narrow exception to design-system.md's general "typed value
+          // color never fades" rule - see that doc's "Typed value color"
+          // bullet for why a genuinely-locked field earns the opposite
+          // call from a merely-not-yet-relevant one (e.g. the OTP-step
+          // phone field, which stays full-opacity and non-`disabled`).
           "disabled:pointer-events-none disabled:opacity-50",
           inputClassName
         )}

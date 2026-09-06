@@ -24,29 +24,51 @@ export type NewUserCity = "herzliya" | "ramat_hasharon";
  * `ChooseAddressStep`/`phoneNumbersMatch`) - confirmed 2026-08-23, reduced
  * from 3 to 2 on 2026-08-24 so that together with the account holder
  * themselves, at most 3 distinct identities can ever have addresses on one
- * account. Addresses with no override, or one matching the account holder,
- * don't count against this at all - only addresses naming a *different*
- * specific person do, since unbounded distinct other-contacts is exactly
- * what a resold/shared account would need. Enforced both here (client-side
- * pre-check, so `ChooseAddressStep` can explain itself instead of a raw RPC
- * error) and server-side in `supabase/sql/address_book.sql`
- * (`v_max_other_contacts`) - keep both in sync if this ever changes. This
- * will become the natural knob for a future subscription tier's limit
- * instead of a flat constant, once one exists.
+ * account. Deliberately kept at 2 on 2026-08-28 when `MAX_TOTAL_ADDRESSES`
+ * below was reduced from 5 to 3 - this cap is the actual identity-sharing
+ * guard and was never the confusing part (a state-loss bug that silently
+ * discarded edits was - see `BookingFlowSheet.onChooseExisting`'s doc
+ * comment), so only the flat total was tightened, not this one. Addresses
+ * with no override, or one matching the account holder, don't count against
+ * this at all - only addresses naming a *different* specific person do,
+ * since unbounded distinct other-contacts is exactly what a resold/shared
+ * account would need. Enforced both here (client-side pre-check, so
+ * `ChooseAddressStep` can explain itself instead of a raw RPC error) and
+ * server-side in `supabase/sql/address_book.sql` (`v_max_other_contacts`) -
+ * keep both in sync if this ever changes. This will become the natural knob
+ * for a future subscription tier's limit instead of a flat constant, once
+ * one exists.
  */
 export const MAX_OTHER_CONTACT_ADDRESSES = 2;
 
 /**
  * Max number of addresses a single account may save in total, regardless of
- * whose contact is on them - added 2026-08-24. Independent of (and stacks
- * with) `MAX_OTHER_CONTACT_ADDRESSES` above: that one only limits addresses
- * naming someone *else*, this one is a flat ceiling on every saved address
- * row, including the account holder's own. Enforced both here (client-side
- * pre-check in `ChooseAddressStep`'s "add new" view) and server-side in
- * `supabase/sql/address_book.sql` (`v_max_total_addresses`) - keep both in
- * sync if this ever changes.
+ * whose contact is on them - added 2026-08-24, reduced from 5 to 3 on
+ * 2026-08-28 (confirmed decision: 3 total is still comfortably above what a
+ * typical customer needs - their own place plus occasionally a
+ * parent/relative - while removing one more number to reason about).
+ * Independent of (and stacks with) `MAX_OTHER_CONTACT_ADDRESSES` above: that
+ * one only limits addresses naming someone *else*, this one is a flat
+ * ceiling on every saved address row, including the account holder's own.
+ * Enforced both here (client-side pre-check in `ChooseAddressStep`'s "add
+ * new" view) and server-side in `supabase/sql/address_book.sql`
+ * (`v_max_total_addresses`) - keep both in sync if this ever changes.
+ *
+ * **Raising this cap later (a real, expected future need per product):**
+ * both this constant and `v_max_total_addresses` are deliberately kept as
+ * flat constants specifically so this is a two-line, no-redesign change -
+ * this file's export, then the matching `constant int` in
+ * `supabase/sql/address_book.sql` (search that file for
+ * `v_max_total_addresses`, both occurrences). No other code depends on the
+ * literal number 3 anywhere - `ChooseAddressStep`'s UI (the disabled "הוסף
+ * כתובת חדשה" row + inline explanation) and `totalAddressLimitReached`'s
+ * `{max}` copy placeholder both already read this constant, so they update
+ * themselves automatically. `MAX_OTHER_CONTACT_ADDRESSES` above is the one
+ * thing worth re-checking at that point, not changing reflexively: it's a
+ * genuinely separate, identity-sharing-abuse guard (see its own doc
+ * comment), not a stand-in for this total.
  */
-export const MAX_TOTAL_ADDRESSES = 5;
+export const MAX_TOTAL_ADDRESSES = 3;
 
 export interface CityOption {
   value: NewUserCity;

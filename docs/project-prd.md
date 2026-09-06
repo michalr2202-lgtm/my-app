@@ -190,8 +190,19 @@ Bottom Sheet 2:
 
 ### Job Reception
 - Job appears as "Pending"
-- For jobs where the customer selected a specific future date/time: standard "Pending" queue behavior, no urgency deadline.
+- For jobs where the customer selected a specific future date/time: broadcast to eligible professionals with its own matching deadline (shorter than "no deadline") - see "Scheduled Job Matching" below.
 - For "Now" (immediate) jobs: broadcast simultaneously to all eligible professionals in the matching category (not sequential) - see "Immediate ('Now') Job Matching" below.
+
+### Scheduled Job Matching
+Applies whenever the customer chose a specific future date/time instead of "Now" (confirmed 2026-09-06, replacing an earlier "no urgency deadline" placeholder - see "Immediate ('Now') Job Matching" below for the analogous "Now" rules this mirrors). A customer submitting a scheduled request still needs to know, within a bounded time, whether anyone will actually take the job - "no deadline at all" left them with no way to tell an order that's quietly never going to be accepted from one that's still being considered.
+
+Two tiers, both measured from the customer's original submission (not from the scheduled time itself, except as the threshold that picks which tier applies):
+
+- **Near-term tier** - scheduled start is **less than 2 hours** from submission (the tightest bookable slots, since same-day slots already require starting more than 1 hour from submission - see `client-booking-flow-prd.md` Step 3): **matching deadline: 15 minutes**, identical to the "Now" flow's own matching deadline - at this distance there's effectively no slack difference between "scheduled for very soon" and "right now," so the same window applies.
+- **Far tier** - scheduled start is **2 hours or more** from submission, including multiple days out: **matching deadline: 1 hour**. This is an explicit **MVP-only** number, not a long-term design decision - it exists only because the professional pool is small enough right now that a genuinely fast response can't be guaranteed organically within 15 minutes for a request that isn't urgent for the professional either. **Planned future change:** once professional density/activity is high enough, this tier collapses into the near-term tier's 15-minute deadline too, removing the two-tier distinction entirely - do not treat "1 hour" as permanent when revisiting this section.
+- **Checkpoint updates:** near-term tier at ~7 minutes (identical to "Now"); far tier at ~30 minutes (the midpoint, same proportion as the near-term tier's 7/15 split).
+- **On expiry** (no acceptance within the applicable tier's deadline): the customer is prompted to either retry (starts a new matching window) or pick a different date/time instead - same UX pattern as "Now"'s expiry below, with copy that references the chosen time rather than "right now" (see `notification_system_prd.md` 5.14-5.16).
+- **MVP operational mitigation:** if no professional responds through the app within the promised window, support manually calls professionals directly to secure a response within the committed SLA. This is a manual, temporary process - not automated, and not a substitute for eventually building real matching-deadline enforcement (no `expires_at` column or expiry job exists yet - see `client-booking-flow-prd.md`'s "Submission" section for what's actually implemented today vs. documented-only).
 
 ### Immediate ("Now") Job Matching
 Applies only when the customer chose the "Now" option instead of a specific date/time.
@@ -357,7 +368,7 @@ Rules:
 - contact_name (optional - who to actually expect/call at this address, when it isn't the account holder, e.g. booking for a parent; added 2026-08-23, see `supabase/sql/address_book.sql`. Independently fillable after creation if left blank, but never replaced once set - added 2026-08-24, made independent of `contact_phone` on 2026-08-25)
 - contact_phone (optional, same purpose and same fill-in-but-never-replace rule as `contact_name`, independently of it; addresses whose `contact_phone` names someone other than the account holder are capped at `MAX_OTHER_CONTACT_ADDRESSES` per user - see `client-booking-flow-prd.md`'s "Other-contact cap")
 - is_default (means "most recently used", not a fixed pin - flipped by `submit_booking` onto whichever address each submission actually uses; reassigned by `delete_address` if the deleted row was the default)
-- deleted_at (added 2026-08-25, soft delete via `ChooseAddressStep`'s per-row trash icon / the `delete_address` RPC - `null` for a live address. Never hard-deleted: `jobs.address_id` may still reference an older address, and both caps above must keep counting a deleted row forever to prevent a delete-and-recreate cap bypass - see `client-booking-flow-prd.md`'s "Deleting a saved address")
+- deleted_at (added 2026-08-25, soft delete via the `delete_address` RPC - `null` for a live address. Service-side only as of 2026-08-31: `authenticated` no longer has `execute` on `delete_address`/`restore_address`, so no customer session can trigger this anymore, only the Supabase service-role key (direct SQL / a future admin tool). Never hard-deleted: `jobs.address_id` may still reference an older address, and both caps above must keep counting a deleted row forever to prevent a delete-and-recreate cap bypass - see `client-booking-flow-prd.md`'s "Deleting a saved address")
 
 ### categories 
 - id 

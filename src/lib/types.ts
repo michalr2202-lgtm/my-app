@@ -99,6 +99,36 @@ export interface Address {
   contact_name: string | null;
   contact_phone: string | null;
   is_default: boolean;
+  /**
+   * True only for the one address created together with the profile
+   * (`submit_booking`'s brand-new-profile branch, via `NewUserDetailsStep`)
+   * - never changes afterward, unlike `is_default` above. See
+   * `supabase/sql/address_book.sql`'s `is_primary` doc comment: this
+   * address always shows the account holder's own locked name instead of
+   * an editable contact override, and can never carry one at all.
+   */
+  is_primary: boolean;
+  /**
+   * True only once the *current* `contact_name`/`contact_phone` value has
+   * actually gone out in a submitted job (added 2026-09-02, replacing an
+   * earlier - buggy - client-side derivation from `addressIdsWithJobs`,
+   * which locked a field the instant the *address* had any job history at
+   * all, even for a brand-new value never itself submitted). Flipped by
+   * `submit_booking`, monotonic (never reverts to `false`) - see
+   * `supabase/sql/address_book.sql`'s "Per-value lock, not per-address"
+   * note. Drives `ChooseAddressStep`'s `contactNameDisabled`/
+   * `contactPhoneDisabled` directly now, instead of `addressIdsWithJobs`.
+   */
+  contact_name_locked: boolean;
+  contact_phone_locked: boolean;
+  /**
+   * Same per-value lock as the contact fields above (added 2026-09-03):
+   * true once the current `building_number`/`apartment` has gone out in a
+   * submitted job. `entrance_code` has no matching flag - it stays
+   * editable indefinitely. See `supabase/sql/address_book.sql`.
+   */
+  building_number_locked: boolean;
+  apartment_locked: boolean;
 }
 
 export type NotificationPriority = "normal" | "urgent" | "critical";

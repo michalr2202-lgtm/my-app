@@ -18,14 +18,31 @@ export interface PillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * intentional token; see design-system.md "Typography" for the app-wide
  * letter-spacing: 0 rule this follows instead.
  *
+ * Default `colorClassName` is text-only, no background (changed
+ * 2026-09-04 from `"bg-surface-pill text-brand-primary"` - every Home
+ * Screen secondary button using this default, "דחוף עכשיו"/"לקבוע למועד
+ * אחר" (`TimePillsRow`) and "הצג יותר עבודות"/"הצג פחות"
+ * (`PopularServicesSection`), went fully transparent that day, matching
+ * `OrderRecap`'s own "שנה כתובת" no-background treatment exactly - same
+ * box (`rounded-full`, `px-4 py-3`), same text
+ * (`text-sm font-medium text-brand-primary`), just no fill). Size/shape
+ * never changes based on color - a caller that DOES want a filled pill
+ * (`ServicePill`'s per-category background, or a future one) passes its
+ * own `colorClassName` explicitly (e.g. `"bg-surface-pill text-brand-
+ * primary"` to restore this exact prior look) rather than this component
+ * ever guessing when to add a background back on its own.
+ *
  * Interaction feedback follows the global rule in
  * /docs/architecture/frontend-architecture.md: 0.2s transition, scale
  * down slightly on press, background darkens ~10% (approximated here via
- * `brightness` since pill background colors are dynamic/data-driven).
+ * `brightness` since pill background colors are dynamic/data-driven) -
+ * this still fires even with no background at all (`active:brightness-95`
+ * on transparent is a no-op visually, but harmless, and keeps every
+ * `Pill` usage's press feedback identical regardless of color).
  */
 export function Pill({
   children,
-  colorClassName = "bg-surface-pill text-brand-primary",
+  colorClassName = "text-brand-primary",
   className,
   style,
   ...props

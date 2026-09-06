@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Image, Pencil, StickyNote, Trash2, X } from "lucide-react";
 import { BookingStepFooter } from "@/components/client/booking/BookingStepFooter";
 import { COPY } from "@/lib/copy";
 
@@ -27,7 +27,8 @@ export interface AttachmentsStepProps {
 
 /**
  * Attachments step (Step 4 - client-booking-flow-prd.md; visuals per Figma
- * node 8426:6072). One single screen, two independent optional affordances
+ * node 8426:6072; trigger-row icon/color refined 2026-09-03 per Figma node
+ * 8615:6739). One single screen, two independent optional affordances
  * (notes, photos) always visible together - never a second question hidden
  * behind the first, so the flow never needs to "ask about photos later"
  * just because the user only touched notes (or vice versa). The whole step
@@ -41,6 +42,20 @@ export interface AttachmentsStepProps {
  * and a full-width row in the sheet's default darker pill-gray reads as too
  * heavy - the same reasoning that led to the lighter surface-notification
  * token for the Home Screen banner applies here.
+ *
+ * Both trigger rows are `text-brand-primary` for icon AND label (refined
+ * 2026-09-03, was `text-text-primary` label + generic `Plus`/`ImagePlus`
+ * icons) - see design-system.md's "Text/icon color for interactive rows"
+ * decision: these two rows are genuine actions (open the note editor, open
+ * the native photo picker), not tappable content, so they get the same
+ * blue as any other CTA in the app. `StickyNote`/`Image` are the exact
+ * glyphs Figma uses (a plain image icon, not `ImagePlus` - the "add" intent
+ * is already carried by the row's label and position, not the icon itself).
+ * The already-filled note chip below is the deliberate contrast case: its
+ * own note *text* stays `text-text-primary` (it's just displaying content
+ * the user typed), while the Trash2/Pencil icons right next to it stay
+ * `text-brand-primary` (deleting/editing genuinely are actions) - one row,
+ * both rules, side by side.
  *
  * Notes auto-save to local state on every keystroke (no separate "שמירה"
  * step, consistent with how every other answer in this flow is captured).
@@ -126,40 +141,40 @@ export function AttachmentsStep({
               onChange={(event) => setNote(event.target.value)}
               onBlur={() => setNoteOpen(false)}
               placeholder={COPY.bookingFlow.attachments.notePlaceholder}
-              className="w-full resize-none rounded-card bg-surface-notification px-4 py-3 text-right text-sm leading-[1.4] text-text-primary shadow-notification outline-none placeholder:text-text-secondary"
+              className="w-full resize-none rounded-card bg-surface-notification px-6 py-3 text-right text-sm leading-[1.4] text-text-primary shadow-notification outline-none placeholder:text-text-secondary"
             />
           ) : trimmedNote ? (
-            <div className="flex w-full items-center gap-2 rounded-full bg-surface-notification py-3 pl-3 pr-6 shadow-notification">
-              {/* Two adjacent action icons: the glyph shrinks to 20px (not
-                  the 24px single-icon standard - see design-system.md
-                  "Icons") so the cluster doesn't read as oversized, but each
-                  icon's own box/hit-target stays the standard 24x24 (size-6)
-                  - only the glyph shrinks, not the slot, so touch targets
-                  and row height never depend on how many icons are
-                  clustered. Outer row padding (pr-6/py-3) is unchanged, so
-                  the row height/edge position still lines up with the
-                  trigger button above. */}
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  aria-label={COPY.bookingFlow.attachments.noteDeleteAriaLabel}
-                  onClick={() => setNote("")}
-                  className="flex size-6 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
-                >
-                  <Trash2 size={20} strokeWidth={1.75} />
-                </button>
-                <button
-                  type="button"
-                  aria-label={COPY.bookingFlow.attachments.noteEditAriaLabel}
-                  onClick={() => setNoteOpen(true)}
-                  className="flex size-6 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
-                >
-                  <Pencil size={20} strokeWidth={1.75} />
-                </button>
-              </div>
+            <div className="flex w-full items-center gap-3 rounded-full bg-surface-notification px-6 py-3 shadow-notification">
+              {/* Symmetric px-6 (24px each side, refined 2026-09-03 from
+                  the trigger row's leading-icon pl-3/pr-6 asymmetry - see
+                  Figma node 8493:6694): this row leads with text, not an
+                  icon, so there's no single "leading edge" to give the
+                  extra 12px to anymore - both edges get the full 24px for
+                  balance. Edit (Pencil) trails the text first, closer to
+                  what it edits, delete (Trash2) last/outermost, gap-3
+                  (12px) apart, each at the standard 24px glyph size
+                  (confirmed 2026-09-03 - every icon on this screen renders
+                  at literal size={24}, no separate smaller-glyph-in-a-
+                  bigger-box treatment; see design-system.md "Icons"). */}
               <p className="min-w-0 flex-1 truncate text-right text-sm leading-[1.4] text-text-primary">
                 {trimmedNote}
               </p>
+              <button
+                type="button"
+                aria-label={COPY.bookingFlow.attachments.noteEditAriaLabel}
+                onClick={() => setNoteOpen(true)}
+                className="flex size-6 shrink-0 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
+              >
+                <Pencil size={24} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                aria-label={COPY.bookingFlow.attachments.noteDeleteAriaLabel}
+                onClick={() => setNote("")}
+                className="flex size-6 shrink-0 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
+              >
+                <Trash2 size={24} strokeWidth={1.75} />
+              </button>
             </div>
           ) : (
             <button
@@ -167,8 +182,8 @@ export function AttachmentsStep({
               onClick={() => setNoteOpen(true)}
               className="flex w-full items-center gap-2 rounded-full bg-surface-notification py-3 pl-3 pr-6 shadow-notification transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96] active:brightness-95"
             >
-              <Plus size={24} strokeWidth={1.75} className="shrink-0 text-brand-primary" />
-              <p className="min-w-0 flex-1 text-right text-sm font-semibold leading-[1.4] text-text-primary">
+              <StickyNote size={24} strokeWidth={1.75} className="shrink-0 text-brand-primary" />
+              <p className="min-w-0 flex-1 text-right text-sm font-medium leading-[1.4] text-brand-primary">
                 {COPY.bookingFlow.attachments.addNoteButton}
               </p>
             </button>
@@ -182,14 +197,14 @@ export function AttachmentsStep({
             onClick={() => fileInputRef.current?.click()}
             className="flex w-full items-center gap-2 rounded-full bg-surface-notification py-3 pl-3 pr-6 shadow-notification transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96] active:brightness-95 disabled:pointer-events-none"
           >
-            <ImagePlus
+            <Image
               size={24}
               strokeWidth={1.75}
               className={`shrink-0 ${photosMaxed ? "text-text-secondary" : "text-brand-primary"}`}
             />
             <p
-              className={`min-w-0 flex-1 text-right text-sm leading-[1.4] ${
-                photosMaxed ? "font-normal text-text-secondary" : "font-semibold text-text-primary"
+              className={`min-w-0 flex-1 text-right text-sm font-medium leading-[1.4] ${
+                photosMaxed ? "text-text-secondary" : "text-brand-primary"
               }`}
             >
               {COPY.bookingFlow.attachments.addPhotosButton}
@@ -213,7 +228,7 @@ export function AttachmentsStep({
           />
 
           {photosMaxed ? (
-            <p className="w-full text-right text-xs leading-[1.4] text-text-secondary">
+            <p className="w-full text-right text-sm leading-[1.4] text-text-secondary">
               {COPY.bookingFlow.attachments.maxPhotosReached}
             </p>
           ) : null}

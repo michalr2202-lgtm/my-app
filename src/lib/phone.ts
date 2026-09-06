@@ -44,6 +44,23 @@ export function formatIsraeliPhoneInput(input: string): string {
 }
 
 /**
+ * The reverse of `normalizeIsraeliPhone` - turns the account's own E.164
+ * phone (`+972501234567`, from Supabase Auth) back into the familiar local
+ * format (`"050-1234567"`) for display/pre-fill inside a text input that
+ * otherwise only ever holds locally-typed numbers (added 2026-08-28, for
+ * `ChooseAddressStep`'s "new" view pre-filling the account holder's own
+ * number into the contact-phone field on their first additional address -
+ * see that component's doc comment). Returns `""` for anything that isn't
+ * a recognizable Israeli E.164 number, same fail-soft behavior as an empty
+ * field rather than showing something obviously wrong.
+ */
+export function formatOwnPhoneForDisplay(e164: string | null | undefined): string {
+  const digits = (e164 ?? "").replace(/\D/g, "");
+  if (!/^9725\d{8}$/.test(digits)) return "";
+  return formatIsraeliPhoneInput(`0${digits.slice(3)}`);
+}
+
+/**
  * Whether two Israeli phone numbers are the same subscriber, regardless of
  * which format each is stored in - the account's own phone comes from
  * Supabase Auth as E.164 (`+972501234567`), while a saved address's

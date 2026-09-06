@@ -155,6 +155,11 @@ export function Combobox({
             "text-sm leading-[1.4] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] focus:outline-none",
             selectedOption ? "text-text-primary" : label ? "text-text-secondary/20" : "text-text-secondary",
             open ? "border-brand-primary" : "border-divider",
+            // Same as `Input` (see its own comment, and design-system.md's
+            // "Typed value color" bullet for the exception this and a
+            // locked `Input` both make to the general rule): reverted
+            // 2026-09-03, back to fading a locked city/street to 50% so it
+            // visibly reads as locked.
             "disabled:pointer-events-none disabled:opacity-50"
           )}
         >

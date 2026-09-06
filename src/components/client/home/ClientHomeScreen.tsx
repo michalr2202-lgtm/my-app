@@ -71,7 +71,19 @@ export function ClientHomeScreen({ categories, services, activeJob, notification
 
   return (
     <div className="relative flex w-full flex-1 flex-col items-center bg-surface-bg">
-      <div className="flex w-full flex-1 flex-col items-center gap-12 px-4 py-6">
+      {/*
+        `pt-10` (40px, confirmed 2026-09-04 - was `py-6`/24px top too) is
+        deliberately more than the 24px `pb-6` bottom padding: the first
+        element here is whichever of ActiveJobCard / NotificationBanner /
+        SearchSection actually renders first for this customer (state-
+        dependent - only SearchSection is unconditional; the build/preview
+        environment currently shows both an active job AND an urgent
+        notification together to make both visible at once, which isn't
+        the typical real state), so this top value is measured from the
+        screen's top edge to whichever one that ends up being, not tied to
+        any one of them specifically.
+      */}
+      <div className="flex w-full flex-1 flex-col items-center gap-12 px-4 pb-6 pt-10">
         {activeJob ? <ActiveJobCard job={activeJob} onClick={handleActiveJobClick} /> : null}
 
         {notification && notificationVisual ? (

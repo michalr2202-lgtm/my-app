@@ -36,15 +36,19 @@ export interface AddressFieldsProps {
   onApartmentChange: (value: string) => void;
   onEntranceCodeChange: (value: string) => void;
   /**
-   * Disables city/street (only, not building number/apartment/entrance
-   * code) - `ChooseAddressStep`'s edit view for an *existing* saved
-   * address, where changing the street/city would mean this row is
-   * actually a different physical place (a move), which `submit_booking`
-   * doesn't allow this path to do at all (see its "Edit path" comment) -
-   * disabling here just makes that restriction visible rather than
-   * silently ignored server-side.
+   * Disables city/street - `ChooseAddressStep`'s edit view, once this
+   * address has actually been used in a submitted job (refined 2026-09-02).
+   * Past that point a different street/city is a move, which
+   * `update_address` no longer allows either.
    */
   disableLocationFields?: boolean;
+  /**
+   * Per-value locks for building number / apartment (added 2026-09-03) -
+   * same signal as `contactNameDisabled`/`contactPhoneDisabled`. Entrance
+   * code has no matching prop: it stays editable indefinitely.
+   */
+  buildingNumberDisabled?: boolean;
+  apartmentDisabled?: boolean;
   /**
    * Renders the optional contact name/phone fields below apartment/entrance
    * code - only relevant when a returning profile might be saving this
@@ -56,6 +60,14 @@ export interface AddressFieldsProps {
   contactPhone?: string;
   onContactNameChange?: (value: string) => void;
   onContactPhoneChange?: (value: string) => void;
+  /**
+   * Shown once, below both contact fields as a pair (added 2026-08-28) -
+   * `ChooseAddressStep` passes `contactFieldsHintFirstTime` on the
+   * account's first-ever additional address, pre-filled with the account
+   * holder's own details, so a pre-filled field still visibly says it can
+   * be changed for someone else rather than silently implying it can't be.
+   */
+  contactFieldsHint?: string;
   /**
    * Independent locks (added 2026-08-25, replacing a single all-or-nothing
    * `contactFieldsDisabled` - see `ChooseAddressStep`'s doc comment for the
@@ -96,11 +108,14 @@ export function AddressFields({
   onApartmentChange,
   onEntranceCodeChange,
   disableLocationFields = false,
+  buildingNumberDisabled = false,
+  apartmentDisabled = false,
   showContactFields = false,
   contactName = "",
   contactPhone = "",
   onContactNameChange,
   onContactPhoneChange,
+  contactFieldsHint,
   contactNameDisabled = false,
   contactPhoneDisabled = false,
 }: AddressFieldsProps) {
@@ -152,6 +167,7 @@ export function AddressFields({
           label={COPY.bookingFlow.newUserDetails.buildingNumberLabel}
           value={buildingNumber}
           onChange={handleBuildingNumberChange}
+          disabled={buildingNumberDisabled}
         />
       </div>
 
@@ -161,6 +177,7 @@ export function AddressFields({
           label={COPY.bookingFlow.newUserDetails.apartmentLabel}
           value={apartment}
           onChange={(event) => onApartmentChange(event.target.value)}
+          disabled={apartmentDisabled}
         />
         <Input
           className="flex-1"
@@ -171,22 +188,27 @@ export function AddressFields({
       </div>
 
       {showContactFields ? (
-        <div className="flex w-full gap-3">
-          <Input
-            className="flex-1"
-            label={COPY.bookingFlow.chooseAddress.contactNameLabel}
-            value={contactName}
-            onChange={(event) => onContactNameChange?.(event.target.value)}
-            disabled={contactNameDisabled}
-          />
-          <Input
-            className="flex-1"
-            inputMode="tel"
-            label={COPY.bookingFlow.chooseAddress.contactPhoneLabel}
-            value={contactPhone}
-            onChange={(event) => onContactPhoneChange?.(formatIsraeliPhoneInput(event.target.value))}
-            disabled={contactPhoneDisabled}
-          />
+        <div className="flex w-full flex-col gap-1.5">
+          <div className="flex w-full gap-3">
+            <Input
+              className="flex-1"
+              label={COPY.bookingFlow.chooseAddress.contactNameLabel}
+              value={contactName}
+              onChange={(event) => onContactNameChange?.(event.target.value)}
+              disabled={contactNameDisabled}
+            />
+            <Input
+              className="flex-1"
+              inputMode="tel"
+              label={COPY.bookingFlow.chooseAddress.contactPhoneLabel}
+              value={contactPhone}
+              onChange={(event) => onContactPhoneChange?.(formatIsraeliPhoneInput(event.target.value))}
+              disabled={contactPhoneDisabled}
+            />
+          </div>
+          {contactFieldsHint ? (
+            <p className="w-full text-right text-xs leading-[1.4] text-text-secondary">{contactFieldsHint}</p>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
 import { cn } from "@/lib/cn";
 import { formatJobDate, formatTimeWindow } from "@/lib/formatDate";
 import { COPY } from "@/lib/copy";
@@ -46,9 +47,11 @@ export interface OrderRecapProps {
   /**
    * Only present once there's an actual saved address to switch between or
    * add to (`BookingFlowSheet`: `addresses.length > 0`) - renders a
-   * "שנה כתובת" link next to the address line, opening `ChooseAddressStep`.
-   * A brand-new profile this same session has no saved addresses yet (its
-   * one address is still just-typed, unsaved), so it never gets this link.
+   * "שנה כתובת" `Pill` below the name/address/contact block, opening
+   * `ChooseAddressStep` (moved there from beside the address line itself
+   * 2026-09-04, against Figma node `8576:6550`). A brand-new profile this
+   * same session has no saved addresses yet (its one address is still
+   * just-typed, unsaved), so it never gets this button.
    */
   onChangeAddress?: () => void;
 }
@@ -158,26 +161,44 @@ export function OrderRecap({
       {profile ? (
         <>
           <div className="h-px w-full bg-divider" />
-          <div className="flex w-full flex-col gap-1">
-            <p className="w-full text-sm leading-[1.4]">{profile.fullName}</p>
-            <div className="flex w-full items-center justify-between gap-2">
-              <p className="text-sm leading-[1.4]">{profile.addressLine}</p>
-              {onChangeAddress ? (
-                <button
-                  type="button"
-                  onClick={onChangeAddress}
-                  className="shrink-0 text-xs font-medium text-brand-primary transition-opacity hover:opacity-70"
-                >
-                  {COPY.bookingFlow.confirm.changeAddress}
-                </button>
+          {/*
+            Redesigned 2026-09-04 against Figma node `8576:6550`: the
+            "שנה כתובת" button moved from beside the address line to its
+            own row below the whole name/address/contact block (`gap-6`,
+            24px, between the text block and the button - Figma's own
+            `gap-[24px]`), and the contact line lost its earlier muted
+            `text-xs text-text-secondary` treatment - all three lines
+            (name, address, contact) are now the same `text-sm
+            text-text-primary` as each other, matching Figma exactly
+            rather than reading as a lesser/secondary detail.
+            `items-center` horizontally centers the button under the
+            (full-width, right-aligned-text) block above it - verified by
+            measuring the rendered screenshot's pixels directly (button
+            text spans x≈139-203, block spans x=24-318, both centered on
+            ≈171) after an initial guess here that it sat flush left was
+            wrong and got corrected.
+          */}
+          <div className="flex w-full flex-col items-center gap-6">
+            <div className="flex w-full flex-col gap-1">
+              <p className="w-full text-right text-sm leading-[1.4]">{profile.fullName}</p>
+              <p className="w-full text-right text-sm leading-[1.4]">{profile.addressLine}</p>
+              {profile.contactName || profile.contactPhone ? (
+                <p className="w-full text-right text-sm leading-[1.4]">
+                  {COPY.bookingFlow.orderRecap.contactLabel}
+                  {": "}
+                  {[profile.contactName, profile.contactPhone].filter(Boolean).join(", ")}
+                </p>
               ) : null}
             </div>
-            {profile.contactName || profile.contactPhone ? (
-              <p className="w-full text-xs leading-[1.4] text-text-secondary">
-                {COPY.bookingFlow.orderRecap.contactLabel}
-                {": "}
-                {[profile.contactName, profile.contactPhone].filter(Boolean).join(", ")}
-              </p>
+            {/*
+              The exact same shared `Pill` Home's `TimePillsRow`/
+              `PopularServicesSection` use, at its default (no-background,
+              confirmed 2026-09-04 - see `Pill`'s own doc comment) styling
+              - no `colorClassName` override needed here at all, matching
+              Figma's "TimePill"-named but fill-less layer here exactly.
+            */}
+            {onChangeAddress ? (
+              <Pill onClick={onChangeAddress}>{COPY.bookingFlow.confirm.changeAddress}</Pill>
             ) : null}
           </div>
         </>
