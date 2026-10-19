@@ -20,6 +20,15 @@ export interface Category {
   is_active: boolean;
 }
 
+/**
+ * Home Screen Time Pill choice (`TimePillsRow`) - moved here 2026-09-06
+ * (was declared in `TimePillsRow.tsx`) once `BookingFlowSheet` also needed
+ * it for its Flow 2 entry prop: that component must stay independent of
+ * any one entry point's UI, so a shared type lives in this neutral file
+ * rather than booking code importing from a Home-specific component.
+ */
+export type TimeSelection = "schedule_later" | "urgent_now";
+
 export interface Service {
   id: string;
   category_id: string;
@@ -70,11 +79,45 @@ export interface ActiveJob {
   status: JobStatus;
   scheduledTime: string;
   professionalName: string;
+  /**
+   * The assigned professional's real phone (`public.users.phone`, added
+   * 2026-09-29 alongside `JobDetailsScreen`'s call button) - `null`
+   * whenever `professionalName` is also empty (no assignment yet), same
+   * "one signal, one source" shape as that field. Real column/join, not a
+   * placeholder value - whatever a given professional's actual `phone` is
+   * (set manually by admin per the MVP onboarding model) is exactly what
+   * renders here; nothing further needs "linking" once that value exists.
+   */
+  professionalPhone: string | null;
   categoryLabel: string;
   categoryColorKey: string;
   serviceLabel: string;
   priceMin: number;
   priceMax: number;
+  /**
+   * The job's real, final charged price (`public.jobs.final_price`, added
+   * 2026-09-29 for the Orders screen's history cards) - set by the
+   * professional's "Complete Job" flow ("Update final price within
+   * defined range", `project-prd.md` §5), a professional-side action that
+   * doesn't exist yet, same situation `professionalPhone` above was in
+   * before this field existed: a real column, correctly `null` for every
+   * job today, not a placeholder to remove later. Only ever non-null for
+   * `completed` jobs in practice - `cancelled`/`incomplete_work` jobs
+   * never go through "Complete Job", so this stays `null` for them, which
+   * is exactly the signal `OrderCard`'s history row uses to decide
+   * whether to render itself at all (see that component's doc comment).
+   */
+  finalPrice: number | null;
+  /**
+   * The customer's free-text note from booking (`AttachmentsStep`'s
+   * `NoteField`, `public.jobs.notes`) - added 2026-09-08 alongside the
+   * Orders screen's real queries. Not rendered by `OrderCard` today (no
+   * card kind shows it per the Figma design); carried on this shared type
+   * so the future Job Details screen (Flow 6) can display it without a
+   * second job-fetch shape. `null` when the customer left the field
+   * blank.
+   */
+  notes: string | null;
 }
 
 /**

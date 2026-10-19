@@ -27,6 +27,11 @@ Whenever a new screen/flow is implemented and you provide the exact copy, a new 
   - [Professional Notifications](#professional-notifications)
 - [Home Screen](#home-screen-source-home-screen-prdmd)
 - [Client Booking Flow](#client-booking-flow-source-client-booking-flow-prdmd)
+- [Orders Screen](#orders-screen-source-project-prdmd-6)
+- [Job Details Screen](#job-details-screen-source-project-prdmd-6)
+- [Login (standalone)](#login-standalone-source-project-prdmd-6)
+- [Notifications Screen (scaffold)](#notifications-screen-scaffold-source-project-prdmd-3)
+- [Profile Screen (scaffold)](#profile-screen-scaffold-source-project-prdmd-3)
 
 ---
 
@@ -44,6 +49,7 @@ Appears across every screen, not scoped to one PRD.
 | `shared.appMeta.description` | "הזמנת בעלי מקצוע לשירותי בית" |
 | `shared.rotateDevice.message` | "לחוויה הטובה ביותר, אנא סובבו את המכשיר בחזרה למצב לאורך" |
 | `shared.combobox.noResults` | "אין תוצאות" (shown in the `Combobox` primitive's option list when a search query matches nothing - see `component-library.md`) |
+| `shared.accountPrompt.existingCustomerLoginLink` | "יש לך הזמנה קיימת? התחברי" (**DRAFT - pending exact wording**, moved 2026-09-29 from `ordersScreen.existingOrderLoginLink` into this shared namespace once `NotificationsScreen`/`ProfileScreen` needed the identical link - see `AccountLoginPrompt` in `component-library.md`. Text unchanged by the move) |
 
 ---
 
@@ -158,6 +164,21 @@ Category and service labels shown on this screen (category cards, service pills)
 | `bookingFlow.searchMatch.priceRange` | "טווח מחיר עבור עבודה זו: {min}–{max} ₪" |
 | `bookingFlow.searchMatch.priceAfterInspection` | "טווח מחיר עבור עבודה זו: מחיר לאחר אבחון" |
 | `bookingFlow.searchMatch.next` | "הבא" |
+| `bookingFlow.urgentNow.heading` | "זו הזמנה דחופה לעכשיו" (top block of `CategoryStep`, shown only for the "דחוף עכשיו" Time Pill entry - added 2026-09-06, see `client-booking-flow-prd.md` §3 "Entry Point Mapping," Flow 2) |
+| `bookingFlow.urgentNow.subtext` | "ננסה לתאם לך בעל מקצוע בהקדם. תוך רבע שעה נדע אם נמצא בעל מקצוע שיגיע אליך עד שעה מעכשיו" (reuses the existing "Now" SLA numbers/wording tail from `notification.customer.now.requestSent`, adapted to pre-submission tense - confirmed 2026-09-06 rather than inventing separate numbers for this screen) |
+| `bookingFlow.categorySelect.heading` | "איזה איש מקצוע אתה צריך?" (`CategoryStep` - Step 1 for the Time Pill entry, Flow 2) |
+| `bookingFlow.categorySelect.next` | "הבא" |
+| `bookingFlow.categoryService.selectedProfessionLabel` | "המקצוע הנבחר:" (confirmed 2026-09-06 - distinct from `searchMatch.matchingProfessionLabel` ("המקצוע המתאים:"), which stays as-is for the AI-search path where the category really is inferred; here it was chosen directly on `CategoryStep`, so "נבחר" (chosen) rather than "מתאים" (matching)) |
+| `bookingFlow.categoryService.heading` | "מה צריך לתקן או להתקין?" (`CategoryServiceStep` - Step 2 for the Time Pill entry, services within the Step 1-picked category) |
+| `bookingFlow.categoryService.otherOption` | "אחר / לא מוצא את מה שאני מחפש" (reworked 2026-09-06 - selecting it turns the pill into a `NoteField` for a free-text description, not an immediate jump to a message screen; see the three keys below and `BookingFlowSheet`'s `handleCategoryOtherNext`) |
+| `bookingFlow.categoryService.otherPlaceholder` | "תאר מה צריך לתקן או להתקין..." (added 2026-09-06 - the "אחר" field's `NoteField` placeholder, parallel to `attachments.notePlaceholder`) |
+| `bookingFlow.categoryService.otherEditAriaLabel` | "עריכת התיאור" (added 2026-09-06) |
+| `bookingFlow.categoryService.otherDeleteAriaLabel` | "מחיקת התיאור" (added 2026-09-06) |
+| `bookingFlow.categoryService.requestedServiceHeading` | "השירות שביקשת" (added 2026-09-06 - `SearchMatchStep`'s `headingOverride.heading` when reached from the "אחר" field's AI classification, replacing `searchMatch.understoodHeading`; the text below it is the raw typed description itself, not `searchMatch.youWrote`'s "כתבת: '...'" wrapper - the customer already knows what they typed, no need to quote it back with a verb) |
+| `bookingFlow.categoryService.differentProfessionHeading` | "המקצוע המתאים על פי מה שתיארת:" (added 2026-09-06 - `SearchMatchStep`'s `professionLabelOverride`, shown instead of `searchMatch.matchingProfessionLabel` only when the AI's classification of the "אחר" text lands on a *different* category than the one already picked on `CategoryStep`; when it lands on the *same* category, the whole profession block is skipped entirely - see `BookingFlowSheet`'s `matchedCategoryDiffersFromSelection`) |
+| `bookingFlow.categoryService.next` | "הבא" |
+| `bookingFlow.serviceConfirm.selectedServiceLabel` | "השירות הנבחר:" (added 2026-09-07 - `ServiceConfirmStep`'s heading for the Service Pill entry, Flow 4; distinct from both `categoryService.selectedProfessionLabel` and `searchMatch.matchingProfessionLabel` since this labels the *service*, not the profession - the service is the thing directly chosen in this flow, via tapping a Home Screen service pill) |
+| `bookingFlow.serviceConfirm.next` | "הבא" |
 | `bookingFlow.scheduling.heading` | "בחר מועד הגעה" |
 | `bookingFlow.scheduling.subheading` | "בששת הימים הקרובים, לא כולל ימי שבת" |
 | `bookingFlow.scheduling.timeHeading` | "בחירת שעה" |
@@ -248,4 +269,76 @@ Category and service labels shown on this screen (category cards, service pills)
 
 `OrderRecap` has no internal heading of its own (confirmed 2026-08-20, redesigned after Figma node 8483:6420) - the screen it's rendered on already has one. Its date/time line reuses an existing key (`homeScreen.activeJobCard.dateToday` / `dateFormat`), but its price line does **not** reuse `bookingFlow.searchMatch.priceRange` - that key's full sentence is right for `SearchMatchStep` (picking between price-ranged options) but reads as clutter next to an already-labeled service name in a compact recap card, hence the dedicated short key above (the priced case doesn't need a copy key at all - it's just `"₪ {min}-{max}"`, the same plain format `ActiveJobCard` already uses for its own price line). Category/service labels themselves come from the database (or AI match results bound to catalog rows), not from this deck.
 
+---
+
+## Orders Screen (source: `project-prd.md` §6)
+
+Implemented 2026-09-08 (dummy data, Figma node 8057:6297 - see `component-library.md`'s `OrderCard` entry). Section headings above each card bucket, plus a couple of bucket-specific status-pill overrides where the generic `Job Status Labels` wording above didn't fit the Figma text exactly.
+
+| Key | Text |
+|---|---|
+| `ordersScreen.upcomingHeading` | "הזמנות מאושרות בהמתנה לביצוע" |
+| `ordersScreen.upcomingStatusLabel` | "אושרה - ממתינה לביצוע" (covers `confirmed`/`pending_approval`/`rescheduled`; fuller phrasing than the generic `jobStatus.confirmed` = "מאושר") |
+| `ordersScreen.pendingHeading` | "מחפשים בעל מקצוע עבורך" (changed 2026-09-09 from "הזמנות ממתינות לאישור בעל מקצוע" - warmer/more personal tone, deliberately worded differently than `pendingStatusLabel` below rather than just repeating it) |
+| `ordersScreen.pendingStatusLabel` | "בחיפוש בעל מקצוע" (covers `searchingProfessional` - no professional assigned yet; changed 2026-09-08 from "ממתינה לאישור" - the customer preferred the phrasing they saw on a real `searching_professional` job's status pill via the generic `jobStatus.searchingProfessional` map, close to which this now reads) |
+| `ordersScreen.historyHeading` | "היסטוריה (עד 5 הזמנות אחרונות)" (changed 2026-09-29 from "היסטוריה (3-5 הזמנות אחרונות)" - the actual cap (`HISTORY_LIMIT` in `orders.ts`) has always been a fixed `5`, never a 3-5 range; the ambiguous "3-5" wording was customer-facing copy that never matched the real implementation. "עד" ("up to") also correctly covers customers with fewer than 5 past jobs.) |
+| `ordersScreen.historyCompletedStatusLabel` | "הושלמה" (covers `completed`; gender-corrected from the generic `jobStatus.completed` = "הושלם") |
+| `ordersScreen.emptyMessage` | "אין הזמנות להצגה כרגע" (**DRAFT - pending exact wording**, added 2026-09-28. Shown when all 4 buckets are empty - deliberately doesn't assert "you have no orders," since that could be false for a returning customer with real history who just has no session on this device - see `OrdersScreen`'s doc comment) |
+
+Paired with `shared.accountPrompt.existingCustomerLoginLink` (see "Shared / Global" above) via the shared `AccountLoginPrompt` component - opens `LoginSheet`, standalone phone verification for the returning-customer-on-a-new-device case, decoupled from placing a new order. That link's copy key moved out of this section on 2026-09-29 (was `ordersScreen.existingOrderLoginLink`) once `NotificationsScreen`/`ProfileScreen` needed the identical prompt - see "Notifications Screen (scaffold)" / "Profile Screen (scaffold)" below.
+
+The top "active now" card (in-flight statuses: `onTheWay`/`arrived`/`inProgress`/`waitingForCustomer`/`waitingForProfessional`) and the history bucket's `cancelled`/`incompleteWork` cards reuse the generic `Job Status Labels` map unchanged - only the 3 statuses above needed Orders-screen-specific wording. **Deliberately no heading above the "active now" card** (confirmed 2026-09-09) - its top position, exclusive blue-filled `StatusBar` (every other pill on this screen is white/outlined), and second-person-active phrasing ("בדרך אלייך") already distinguish it from the 3 headed buckets below without needing one; adding a heading would make it feel like just another list bucket instead of the one singular "happening right now" card.
+
 **Product decision, confirmed 2026-08-21:** for the "no_price_yet" population (category matched, no priced catalog service - see `bookingFlow.priceAfterInspectionShort` above), the recap keeps showing `"מחיר לאחר אבחון"` rather than leaving the price cell blank. Reasoning: every other order in this exact card shows *something* in that cell, so an empty gap there reads as broken/incomplete right when the customer is doing their final check before committing - not as a deliberate "price truly doesn't apply" signal. The customer already saw the fuller explanation once, on `SearchMatchStep`'s `priceAfterInspection` message; repeating the short form here is a reminder of something already agreed to (same role as the date/time/address lines, which are also just reminders), not new information, and it directly answers the one question a blank cell would raise ("was this priced or not - did something go wrong?").
+
+## Job Details Screen (source: `project-prd.md` §6)
+
+Implemented 2026-09-28 (Figma node 9220:6130 - see `component-library.md`'s `JobDetailsScreen` entry). Reached from both the Home Screen's Active Job Card and any `OrdersScreen` card.
+
+| Key | Text |
+|---|---|
+| `jobDetailsScreen.yourNoteButton` | "ההערה שלך" |
+| `jobDetailsScreen.reportProblemButton` | "נתקלת בבעיה?" |
+| `jobDetailsScreen.notFound` | "ההזמנה לא נמצאה" |
+| `jobDetailsScreen.viewPhotoAriaLabel` | "הצג את התמונה בגודל מלא" (added 2026-09-28 - `aria-label` on each attached-photo thumbnail button, which opens it full-size in `ImageLightbox`; see `component-library.md`) |
+| `jobDetailsScreen.callProfessionalAriaLabel` | "התקשר לבעל המקצוע" (added 2026-09-29 - `aria-label` on the circular `tel:` call link shown once a professional is assigned with a real phone and the appointment is within 2 hours; see `component-library.md`) |
+| `jobDetailsScreen.callSupportButton` | "חייג לשירות לקוחות" (added 2026-10-01 - replaces `reportProblemButton` above once the job is inside the 2-hour customer-cancellation cutoff; see `docs/cancellation-and-rescheduling.md`'s "Customer-Side Cancellation UI" and `component-library.md`'s `ReportProblemSheet` entry) |
+| `jobDetailsScreen.callSupportAriaLabel` | "התקשר לשירות הלקוחות" (added 2026-10-01 - `aria-label` on that same direct-dial `tel:` link) |
+| `jobDetailsScreen.reportProblem.chooseHeading` | "מה תרצה לעשות?" (added 2026-10-01 - `ReportProblemSheet`'s first screen title, shown more than 2 hours before `scheduled_time` or while `searching_professional`) |
+| `jobDetailsScreen.reportProblem.cancelOption` | "לבטל הזמנה" |
+| `jobDetailsScreen.reportProblem.contactSupportOption` | "ליצור קשר עם שירות הלקוחות" |
+| `jobDetailsScreen.reportProblem.next` | "הבא" |
+| `jobDetailsScreen.reportProblem.previous` | "הקודם" |
+| `jobDetailsScreen.reportProblem.closeAction` | "סגור" (the contact-support screen's forward action - there's nothing further to advance to, so this just dismisses the Sheet) |
+| `jobDetailsScreen.reportProblem.cancelConfirmHeading` | "לבטל את ההזמנה?" |
+| `jobDetailsScreen.reportProblem.cancelConfirmWarning` | "לאחר הביטול לא ניתן לשחזר את ההזמנה." |
+| `jobDetailsScreen.reportProblem.cancelConfirmAction` | "בטל את ההזמנה" |
+| `jobDetailsScreen.reportProblem.cancelError` | "לא הצלחנו לבטל את ההזמנה. נסה שוב." |
+| `jobDetailsScreen.reportProblem.contactSupportHeading` | "שירות הלקוחות" |
+
+## Login (standalone) (source: `project-prd.md` §6)
+
+`LoginSheet` (added 2026-09-28) - standalone phone verification, decoupled from the Booking Flow, for a returning customer who has real order history but no session on the current device/browser (see `OrdersScreen`'s doc comment for the gap this closes). Overrides `AuthenticationStep`'s own booking-specific heading/subheading; every other string on that screen (phone/code labels, placeholders, error messages, button labels) is reused as-is from `bookingFlow.authentication.*` above - unchanged regardless of context.
+
+| Key | Text |
+|---|---|
+| `login.heading` | "בוא נאמת את המספר שלך" (**DRAFT - pending exact wording**, reused as-is from `bookingFlow.authentication.heading` - generic enough to fit both contexts) |
+| `login.subheading` | "כדי שנוכל להציג את ההזמנות הקיימות שלך במכשיר הזה" (**DRAFT - pending exact wording**, added 2026-09-28 - distinct from `bookingFlow.authentication.subheading`, which talks about the order being placed right now) |
+
+## Notifications Screen (scaffold) (source: `project-prd.md` §3)
+
+`/notifications` opened as a bare scaffold 2026-09-29 (see `NotificationsScreen`'s doc comment) - not the real screen (`notification_system_prd.md` §9 owns that copy separately, once built). Only exists so the tab isn't a dead link and so its "logged out vs. genuinely no notifications" ambiguity - the same shape as `OrdersScreen`'s - gets the same shared prompt from day one.
+
+| Key | Text |
+|---|---|
+| `notificationsScreen.emptyMessage` | "אין התראות להצגה כרגע" (**DRAFT - pending exact wording**, added 2026-09-29 - same neutral-about-session pattern as `ordersScreen.emptyMessage`, paired with `shared.accountPrompt.existingCustomerLoginLink` via `AccountLoginPrompt`) |
+| `notificationsScreen.comingSoonMessage` | "מסך ההתראות בבנייה" (**SCAFFOLD placeholder, not final copy** - shown only when a session exists; the real Notifications content replaces this entirely once that screen is built) |
+
+## Profile Screen (scaffold) (source: `project-prd.md` §3)
+
+`/profile` opened as a bare scaffold 2026-09-29 (see `ProfileScreen`'s doc comment) - `project-prd.md` has never specified this screen's real content (only its `BottomNavigation` tab/href existed before now). Same reasoning as the Notifications scaffold above: exists so the tab isn't a dead link and so the login prompt is consistent across every account-dependent screen.
+
+| Key | Text |
+|---|---|
+| `profileScreen.emptyMessage` | "התחברי כדי לראות את הפרופיל שלך" (**DRAFT - pending exact wording**, added 2026-09-29 - unlike Orders/Notifications, a brand-new guest was never expected to have a profile at all, so this can be more direct than "neutral about which case is true") |
+| `profileScreen.comingSoonMessage` | "מסך הפרופיל בבנייה" (**SCAFFOLD placeholder, not final copy** - shown only when a session exists; the real Profile content replaces this entirely once that screen is built) |

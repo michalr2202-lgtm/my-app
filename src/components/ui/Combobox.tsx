@@ -78,21 +78,14 @@ export function Combobox({
     if (!searchable || !hasQuery) return options;
     const normalized = query.trim();
     return options.filter((option) => option.label.includes(normalized));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, query, searchable, hasQuery]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        close();
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
+  // Declared above the effect below that reads it (fixed 2026-09-07,
+  // `react-hooks/immutability`) - harmless at runtime either way, since
+  // `close` is only ever invoked from `handlePointerDown`'s async event
+  // callback, well after this render (and its closure over `close`) has
+  // already finished - but the lint rule wants call-order to match
+  // declaration-order regardless.
   const openList = () => {
     if (disabled) return;
     setQuery("");
@@ -106,6 +99,17 @@ export function Combobox({
     setOpen(false);
     setQuery("");
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        close();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
 
   const handleSelect = (option: ComboboxOption) => {
     onChange(option.value);

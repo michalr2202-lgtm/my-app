@@ -6,6 +6,9 @@
       "notifications": "התראות",
       "profile": "פרופיל"
     },
+    "accountPrompt": {
+      "existingCustomerLoginLink": "יש לך הזמנה קיימת? התחברי"
+    },
     "appMeta": {
       "title": "DoorHub",
       "description": "הזמנת בעלי מקצוע לשירותי בית"
@@ -120,6 +123,29 @@
       "priceAfterInspection": "טווח מחיר עבור עבודה זו: מחיר לאחר אבחון",
       "next": "הבא"
     },
+    "urgentNow": {
+      "heading": "זו הזמנה דחופה לעכשיו",
+      "subtext": "ננסה לתאם לך בעל מקצוע בהקדם. תוך רבע שעה נדע אם נמצא בעל מקצוע שיגיע אליך עד שעה מעכשיו"
+    },
+    "categorySelect": {
+      "heading": "איזה איש מקצוע אתה צריך?",
+      "next": "הבא"
+    },
+    "categoryService": {
+      "selectedProfessionLabel": "המקצוע הנבחר:",
+      "heading": "מה צריך לתקן או להתקין?",
+      "otherOption": "אחר / לא מוצא את מה שאני מחפש",
+      "otherPlaceholder": "תאר מה צריך לתקן או להתקין...",
+      "otherEditAriaLabel": "עריכת התיאור",
+      "otherDeleteAriaLabel": "מחיקת התיאור",
+      "requestedServiceHeading": "השירות שביקשת",
+      "differentProfessionHeading": "המקצוע המתאים על פי מה שתיארת:",
+      "next": "הבא"
+    },
+    "serviceConfirm": {
+      "selectedServiceLabel": "השירות הנבחר:",
+      "next": "הבא"
+    },
     "scheduling": {
       "heading": "בחר מועד הגעה",
       "subheading": "בששת הימים הקרובים, לא כולל ימי שבת",
@@ -232,6 +258,49 @@
       "updateAddress": "עדכן כתובת",
       "addAddressError": "לא הצלחנו לשמור את הכתובת. נסה שוב.",
       "updateAddressError": "לא הצלחנו לעדכן את הכתובת. נסה שוב."
+    }
+  },
+  "ordersScreen": {
+    "upcomingHeading": "הזמנות מאושרות בהמתנה לביצוע",
+    "upcomingStatusLabel": "אושרה - ממתינה לביצוע",
+    "pendingHeading": "מחפשים בעל מקצוע עבורך",
+    "pendingStatusLabel": "בחיפוש בעל מקצוע",
+    "historyHeading": "היסטוריה (עד 5 הזמנות אחרונות)",
+    "historyCompletedStatusLabel": "הושלמה",
+    "emptyMessage": "אין הזמנות להצגה כרגע"
+  },
+  "notificationsScreen": {
+    "emptyMessage": "אין התראות להצגה כרגע",
+    "comingSoonMessage": "מסך ההתראות בבנייה"
+  },
+  "profileScreen": {
+    "emptyMessage": "התחברי כדי לראות את הפרופיל שלך",
+    "comingSoonMessage": "מסך הפרופיל בבנייה"
+  },
+  "login": {
+    "heading": "בוא נאמת את המספר שלך",
+    "subheading": "כדי שנוכל להציג את ההזמנות הקיימות שלך במכשיר הזה"
+  },
+  "jobDetailsScreen": {
+    "yourNoteButton": "ההערה שלך",
+    "reportProblemButton": "נתקלת בבעיה?",
+    "callSupportButton": "חייג לשירות לקוחות",
+    "callSupportAriaLabel": "התקשר לשירות הלקוחות",
+    "notFound": "ההזמנה לא נמצאה",
+    "viewPhotoAriaLabel": "הצג את התמונה בגודל מלא",
+    "callProfessionalAriaLabel": "התקשר לבעל המקצוע",
+    "reportProblem": {
+      "chooseHeading": "מה תרצה לעשות?",
+      "cancelOption": "לבטל הזמנה",
+      "contactSupportOption": "ליצור קשר עם שירות הלקוחות",
+      "next": "הבא",
+      "previous": "הקודם",
+      "closeAction": "סגור",
+      "cancelConfirmHeading": "לבטל את ההזמנה?",
+      "cancelConfirmWarning": "לאחר הביטול לא ניתן לשחזר את ההזמנה.",
+      "cancelConfirmAction": "בטל את ההזמנה",
+      "cancelError": "לא הצלחנו לבטל את ההזמנה. נסה שוב.",
+      "contactSupportHeading": "שירות הלקוחות"
     }
   }
 }

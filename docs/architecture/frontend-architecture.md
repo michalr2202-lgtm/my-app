@@ -358,6 +358,48 @@ Also document how the Component occupies space and adapts to different content s
 
 ---
 
+# Safe-Area / Full-Screen Display
+
+**Why the app doesn't fill the screen edge-to-edge today (confirmed 2026-09-29,
+in response to a real question/screenshot):** viewed as an ordinary URL in a
+phone's browser (Chrome/Samsung Internet/Safari - however this app is being
+tested today, e.g. a Cloudflare quick-tunnel link), the browser's own chrome
+(address bar, tabs) always occupies real screen space above the page - no
+amount of app-side code can remove that; it isn't this app's content area to
+control. The page content itself already correctly fills whatever space the
+browser *does* give it (standard responsive layout, `viewport: { width:
+"device-width", initialScale: 1 }` in `layout.tsx`).
+
+**What genuinely starts "from the very rounded corners of the phone" -
+no address bar at all:** only two paths get there, neither of which is what
+today's plain browser-tab preview shows:
+1. **Installed to the home screen** (a real web-manifest `display:
+   "standalone"` PWA, opened from its home-screen icon rather than a browser
+   tab) - not yet built; needs `app/manifest.ts` plus a real app icon
+   (deferred 2026-09-29 pending a decision on the icon asset).
+2. Eventually wrapped in a native app shell.
+
+**`viewportFit: "cover"` (added 2026-09-29, `layout.tsx`'s `viewport`
+export):** prerequisite groundwork for path 1 above - this is what makes
+`env(safe-area-inset-*)` report real, non-zero values on a real device at
+all (iOS Safari always reports `0px` without it), rather than something
+that changes anything visible today. Paired with two paddings that use those
+variables so the day this *is* running standalone/full-screen, real content
+doesn't sit underneath the physical notch/rounded corners or the home
+indicator:
+- `<body>` (`layout.tsx`): `pt-[env(safe-area-inset-top)]`.
+- `BottomNavigation`: `pb-[max(1rem,env(safe-area-inset-bottom))]` - the
+  `max()` keeps the original 16px bottom padding as a floor on any device
+  reporting `0px` (every device/context until path 1 exists, plus any
+  Android device with no gesture-bar inset to begin with), rather than
+  collapsing tighter than today's design.
+
+Both resolve to `0px`/no-op in every context this app runs in today (a
+regular browser tab) - real behavior change only once path 1 (or 2) above
+is actually built.
+
+---
+
 # UI Development Rules
 
 - Build pixel-perfect UI based on Figma

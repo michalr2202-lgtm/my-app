@@ -256,7 +256,7 @@ Behavior:
 ### State B: Has Active Job
 - Active job card is displayed
 Visibility:
-- Display only if job status is NOT 'completed' or 'cancelled'
+- **Corrected 2026-09-08** (was: "NOT 'completed' or 'cancelled'" - too broad, a real bug found live: a `searching_professional`/`pending_approval` job incorrectly showed here instead of State A): display only once the job is truly in flight - the professional has pressed "on the way" (`on_the_way`) through arrival/working (`arrived`/`in_progress`/`waiting_for_customer`/`waiting_for_professional`). A job still `confirmed`/`pending_approval`/`searching_professional` (approved but the professional hasn't started traveling yet) belongs on the Orders screen's "upcoming"/"pending" buckets instead, not here - see `src/lib/queries/jobRow.ts`'s `ACTIVE_NOW_STATUSES` (shared with the Orders screen's own "active now" slot - one definition, not two).
 - Pushes content downward
 
 ---

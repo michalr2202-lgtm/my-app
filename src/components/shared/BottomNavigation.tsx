@@ -31,10 +31,20 @@ export interface BottomNavigationProps {
 /**
  * BottomNavigation - fixed full-navigation bar (not a bottom sheet).
  * See /docs/home-screen-prd.md 3.7 and Rule 6.
+ *
+ * `pb-[max(1rem,env(safe-area-inset-bottom))]` (added 2026-09-29, replacing
+ * a plain `py-4`): once this app is genuinely full-screen (installed to the
+ * home screen - see `layout.tsx`'s `viewportFit: "cover"` doc comment),
+ * this bar sits at the true bottom physical edge of the device, right where
+ * an iPhone's home-indicator bar lives. `max(...)` keeps the original 16px
+ * padding as a floor on any device with no inset (`env()` resolves to
+ * `0px` there, e.g. today's ordinary-browser-tab preview, or any Android
+ * device without a gesture bar) rather than collapsing tighter than the
+ * existing design.
  */
 export function BottomNavigation({ activeTab, hasUnreadNotifications }: BottomNavigationProps) {
   return (
-    <nav className="flex w-full items-center justify-between bg-surface-bg px-6 py-4">
+    <nav className="flex w-full items-center justify-between bg-surface-bg px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
       {NAV_ITEMS.map(({ tab, label, href, icon: Icon }) => {
         const isActive = tab === activeTab;
         const colorClass = isActive ? "text-brand-primary" : "text-text-secondary";

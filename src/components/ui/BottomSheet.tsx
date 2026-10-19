@@ -36,6 +36,16 @@ export interface BottomSheetProps {
  * scrolling) instead of failing hard (its footer/submit button pushed
  * off-screen and completely unreachable) - it is not a substitute for
  * verifying every step actually fits.
+ *
+ * `[scrollbar-gutter:stable]` (added 2026-09-07) reserves this desktop
+ * scrollbar's width up front, whether or not it's actually showing -
+ * without it, content that grows just past `92dvh` (e.g. a price line
+ * appearing under a newly-selected pill on `CategoryServiceStep`) makes a
+ * scrollbar appear and shrink the available width by its few pixels,
+ * which is enough to reflow a `flex-wrap` pill grid mid-interaction (pills
+ * silently changing how many fit per row) - looked like selecting a pill
+ * itself was causing a layout jump, when it was really this scrollbar
+ * appearing/disappearing on the sheet's outer container.
  */
 export function BottomSheet({
   open,
@@ -77,7 +87,7 @@ export function BottomSheet({
           role="dialog"
           aria-modal="true"
           className={cn(
-            "relative z-10 flex max-h-[92dvh] w-full flex-col overflow-y-auto rounded-t-card bg-surface-bg px-4 pb-6 pt-4",
+            "relative z-10 flex max-h-[92dvh] w-full flex-col overflow-y-auto [scrollbar-gutter:stable] rounded-t-card bg-surface-bg px-4 pb-6 pt-4",
             className
           )}
         >

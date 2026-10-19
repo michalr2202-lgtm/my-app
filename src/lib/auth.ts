@@ -1,22 +1,28 @@
-import type { Session } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 /**
- * TODO: Replace with real authentication/session lookup once the customer
- * auth flow (phone + OTP, per /docs/project-prd.md section 5) is
- * implemented. Until then there is no way to identify "the current
- * customer", so screens must gracefully render their empty state.
+ * Real per-customer identity for Server Components (Home Screen, Orders
+ * Screen) - implemented 2026-09-08, replacing the previous hardcoded
+ * `return null` stub. That stub's own doc comment used to explain this
+ * needed "cookie-based SSR session reading (`@supabase/ssr` + middleware)"
+ * as separate infrastructure - `src/proxy.ts` + `src/lib/supabase/server.ts`
+ * are exactly that, now built.
  *
- * This one specifically backs `src/app/page.tsx` (Home Screen Active Job
- * Card), a Server Component - detecting a real session there needs
- * cookie-based SSR session reading (`@supabase/ssr` + middleware), which is
- * separate, larger infrastructure not covered by the Booking Flow
- * Authentication work below. `getBookingSession`/`hasUserProfile` below are
- * for the Booking Flow's own Client Component context, which doesn't have
- * this limitation - see /docs/client-booking-flow-prd.md Step 5/6.
+ * Takes the request-scoped server client (see `createSupabaseServerClient`)
+ * rather than importing a singleton, since a Server Component needs a
+ * fresh, cookie-bound client per request - there's no module-level client
+ * this function could reuse the way the Booking Flow's browser client
+ * does. Uses `getUser()`, not `getSession()`, since only `getUser()`
+ * revalidates the token against Supabase Auth itself rather than trusting
+ * a possibly-stale locally-decoded JWT - important here because this
+ * result directly gates which `jobs` rows a query is allowed to return.
  */
-export function getCurrentCustomerId(): string | null {
-  return null;
+export async function getCurrentCustomerId(serverClient: SupabaseClient): Promise<string | null> {
+  const {
+    data: { user },
+  } = await serverClient.auth.getUser();
+  return user?.id ?? null;
 }
 
 /**

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ActiveJobCard } from "@/components/shared/ActiveJobCard";
 import { NotificationBanner } from "@/components/shared/NotificationBanner";
 import { BottomNavigation } from "@/components/shared/BottomNavigation";
@@ -23,12 +24,20 @@ export interface ClientHomeScreenProps {
  * ClientHomeScreen - top-level Home Screen composition.
  * See /docs/home-screen-prd.md "Component Architecture" and Layout Structure.
  *
- * Search opens the shared booking Bottom Sheet (Flow 1). Other entry points
- * still stubbed until their Figma steps are wired into BookingFlowSheet.
+ * Search (Flow 1), the Time Pills (Flow 2, wired 2026-09-06), the
+ * Category Cards (Flow 3, wired 2026-09-07 - piloted on "חשמלאי" alone
+ * first, then extended to all 4 the same day once confirmed), and the
+ * Popular Services pills (Flow 4, wired 2026-09-07) all open the shared
+ * booking Bottom Sheet - see `BookingFlowSheet`'s doc comment for how each
+ * maps onto its step sequence.
  */
 export function ClientHomeScreen({ categories, services, activeJob, notification }: ClientHomeScreenProps) {
+  const router = useRouter();
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingQuery, setBookingQuery] = useState<string | null>(null);
+  const [bookingTimeSelection, setBookingTimeSelection] = useState<TimeSelection | null>(null);
+  const [bookingCategoryId, setBookingCategoryId] = useState<string | null>(null);
+  const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
 
   const handleSearch = (query: string) => {
     const trimmed = query.trim();
@@ -38,23 +47,45 @@ export function ClientHomeScreen({ categories, services, activeJob, notification
   };
 
   const handleSelectTime = (selection: TimeSelection) => {
-    // TODO: open Bottom Sheet -> scheduling-first entry (Flow 2).
-    console.log("time selection:", selection);
+    setBookingTimeSelection(selection);
+    setBookingOpen(true);
   };
 
+  /**
+   * Flow 3 (Category Card) - added 2026-09-07, piloted on "חשמלאי" only
+   * first, then confirmed working end-to-end and extended to all 4 the
+   * same day. Nothing here is category-specific - `BookingFlowSheet`'s
+   * `categoryId` prop and everything downstream of it already handle any
+   * category generically - so this is just `setBookingCategoryId`/
+   * `setBookingOpen`, same shape as `handleSelectTime` above.
+   */
   const handleSelectCategory = (category: Category) => {
-    // TODO: open Bottom Sheet -> services in category (Flow 3).
-    console.log("category:", category.name_en);
+    setBookingCategoryId(category.id);
+    setBookingOpen(true);
   };
 
+  /**
+   * Flow 4 (Service Pill) - wired 2026-09-07, mirrors Flow 3's
+   * `handleSelectCategory` exactly. Nothing here is service-specific -
+   * `BookingFlowSheet`'s `serviceId` prop and everything downstream of it
+   * already handle any catalog service generically - so every Popular
+   * Services pill is wired at once, unlike Flow 3's one-category-at-a-time
+   * pilot (there's no natural "one pill first" seam here the way there was
+   * with 4 distinct category cards).
+   */
   const handleSelectService = (service: ServiceWithCategory) => {
-    // TODO: open Bottom Sheet -> scheduling (Flow 4).
-    console.log("service:", service.name_en);
+    setBookingServiceId(service.id);
+    setBookingOpen(true);
   };
 
+  /**
+   * Flow 6 (Active Job Click) - wired 2026-09-09, once `JobDetailsScreen`
+   * (`/orders/[jobId]`) existed to navigate to. See that component's doc
+   * comment for scope (minimal, read-only for this pass).
+   */
   const handleActiveJobClick = () => {
-    // TODO: navigate to job details screen (Flow 6).
-    console.log("active job clicked:", activeJob?.id);
+    if (!activeJob) return;
+    router.push(`/orders/${activeJob.id}`);
   };
 
   const handleNotificationClick = () => {
@@ -65,6 +96,9 @@ export function ClientHomeScreen({ categories, services, activeJob, notification
   const handleCloseBooking = () => {
     setBookingOpen(false);
     setBookingQuery(null);
+    setBookingTimeSelection(null);
+    setBookingCategoryId(null);
+    setBookingServiceId(null);
   };
 
   const notificationVisual = notification ? getNotificationVisual(notification.type) : null;
@@ -114,7 +148,16 @@ export function ClientHomeScreen({ categories, services, activeJob, notification
         <BottomNavigation activeTab="home" hasUnreadNotifications={Boolean(notification)} />
       </div>
 
-      <BookingFlowSheet open={bookingOpen} query={bookingQuery} onClose={handleCloseBooking} />
+      <BookingFlowSheet
+        open={bookingOpen}
+        query={bookingQuery}
+        timeSelection={bookingTimeSelection}
+        categoryId={bookingCategoryId}
+        serviceId={bookingServiceId}
+        categories={categories}
+        catalogServices={services}
+        onClose={handleCloseBooking}
+      />
     </div>
   );
 }

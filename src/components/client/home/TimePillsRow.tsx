@@ -2,8 +2,9 @@
 
 import { Pill } from "@/components/ui/Pill";
 import { COPY } from "@/lib/copy";
+import type { TimeSelection } from "@/lib/types";
 
-export type TimeSelection = "schedule_later" | "urgent_now";
+export type { TimeSelection };
 
 export interface TimePillsRowProps {
   onSelect: (selection: TimeSelection) => void;

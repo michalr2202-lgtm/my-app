@@ -20,6 +20,15 @@
   --color-surface-searchbar: #ffffff;
   --color-surface-notification: #fafafa;
   --color-overlay-scrim: rgb(0 0 0 / 70%);
+  /*
+   * Heavier variant, `ImageLightbox` only (added 2026-09-28) - deliberately
+   * darker (85% vs. the shared scrim's 70%) per product direction: a photo
+   * preview should feel like its own quiet, gallery-like moment, distinct
+   * from Bottom Sheet's lighter dim. Not a replacement for
+   * `--color-overlay-scrim` - every other overlay (Bottom Sheet, etc.)
+   * keeps the original 70%.
+   */
+  --color-overlay-scrim-heavy: rgb(0 0 0 / 85%);
 
   /* Status / feedback */
   --color-notification-red: #ef4444;
@@ -34,9 +43,21 @@
 
   /* Shadows */
   --shadow-card: 0px 2px 2px 0px rgba(0, 0, 0, 0.12);
-  --shadow-notification: 0px 1px 1px 0px rgba(0, 0, 0, 0.08);
   --shadow-search-bar: 0px 2px 8px 0px rgba(0, 0, 0, 0.06);
-  --shadow-button: 0px 1px 1px 0px rgba(0, 0, 0, 0.08);
+  /*
+   * `shadow-notification` and `shadow-button` were two separately-authored
+   * tokens that happened to already share the exact same value - unified
+   * 2026-09-29 (per user request) to one canonical source, `--shadow-resting`,
+   * so there is now exactly one number to change if this shadow is ever
+   * redesigned. Both Tailwind utility class names (`shadow-notification`,
+   * `shadow-button`) are kept as-is - components reference whichever name
+   * is more semantically meaningful where they're used (notification-style
+   * pills/rows vs. plain buttons), they just now resolve to the same value
+   * by construction instead of by coincidence.
+   */
+  --shadow-resting: 0px 1px 1px 0px rgba(0, 0, 0, 0.08);
+  --shadow-notification: var(--shadow-resting);
+  --shadow-button: var(--shadow-resting);
 
   /* Radius */
   --radius-card: 24px;
@@ -47,11 +68,47 @@
 
   /* Motion */
   --animate-caret-blink: caret-blink 1s step-end infinite;
+  --animate-character-pulse: character-searching-pulse 4s ease-in-out infinite;
 }
 
 @keyframes caret-blink {
   50% {
     opacity: 0;
+  }
+}
+
+/*
+ * Job Details screen's "searching for a professional" indicator (added
+ * 2026-09-28, Figma node 9220:6130) - the professional-character
+ * illustration itself breathes (fades to near-invisible and back) for as
+ * long as `job.status === "searching_professional"`, replacing an earlier
+ * static 3-dot indicator per product direction: the character "searching"
+ * reads more directly than generic loading dots, and the pulse simply
+ * stopping (settling to fully opaque) doubles as the "found a
+ * professional!" moment once the status changes - see
+ * `JobDetailsScreen.tsx`.
+ *
+ * Slow (4s) and gentle (100%->10%->100%, eased, not a hard on/off blink) -
+ * deliberately not the same fast, press-feedback-derived timing used
+ * elsewhere in the app (`200ms`/`cubic-bezier(0.4,0,0.2,1)`), which was
+ * already tried and reverted once for a decorative entrance animation for
+ * feeling too quick - see design-system.md's "Interaction & Motion".
+ * Tuned slower + deeper 2026-09-28 (was 2.4s / 55%) per product feedback:
+ * the first pass wasn't slow enough and the fade wasn't noticeable enough.
+ */
+@keyframes character-searching-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-character-pulse {
+    animation: none;
   }
 }
 

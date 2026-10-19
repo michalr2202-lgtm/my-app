@@ -123,6 +123,8 @@ Bottom Navigation:
 - Orders
 - Profile
 
+**Status (confirmed 2026-09-29):** Notifications and Profile are scaffold-only routes (`NotificationsScreen`/`ProfileScreen` in `component-library.md`) — real, working tabs so the login prompt could be made consistent across every account-dependent screen (see `AccountLoginPrompt`'s "Login entry points" note in `component-library.md`), but neither has its real content built yet; that's separate, later work with its own design.
+
 ### Professional App
 
 Bottom Navigation:
@@ -219,6 +221,7 @@ Two separate deadlines, both measured from the customer's original submission (n
 ### Accept Job
 - First-come-first-serve
 - Moves to "Scheduled"
+- **Backend implemented 2026-09-09** (`supabase/sql/job_transitions.sql`'s `accept_job`/`advance_job_status` RPCs), ahead of any real professional app existing - see `component-library.md`'s "Job status transition RPCs" section for what's real vs. still provisional (an explicit actor-id parameter instead of a real professional session, and a grant to `authenticated` that must be revoked once one exists). Everything else in this section (matching deadlines, broadcast, the professional app itself) remains documented only, per the "Scheduled Job Matching"/"Immediate ('Now') Job Matching" subsections above.
 
 ### Active Job States
 
@@ -260,7 +263,10 @@ Two separate deadlines, both measured from the customer's original submission (n
 ### Customer
 - Pending job (awaiting acceptance)
 - Upcoming jobs
-- Past jobs (last 3–5)
+- Past jobs (last 5, fixed count-only cap - no time-based expiry; confirmed 2026-09-29, see `orders.ts`'s `HISTORY_LIMIT` doc comment for the reasoning)
+- **Implemented 2026-09-08**, wired to real per-customer queries the same day, as `OrdersScreen` at the `/orders` route (Figma node 8057:6297): an un-headed "active now" card at top (identical to the Home Screen's `ActiveJobCard`), followed by 3 headed buckets built on a shared `OrderCard` component - "confirmed/upcoming" (`confirmed`/`pending_approval`/`rescheduled`), "pending acceptance" (`searching_professional`, professional name hidden), and "history" (`completed`/`cancelled`/`incomplete_work`, last 5, service/price row shown only for `completed` jobs, with a single real `final_price` instead of a range - see `component-library.md`'s `OrderCard` entry). See `component-library.md`'s `OrderCard` entry for the full status-to-bucket-to-variant mapping and `copy-deck.md`'s "Orders Screen" section for copy. Backed by `fetchActiveJob` + `fetchCustomerOrders` (`src/lib/queries/orders.ts`) against a real, cookie-authenticated per-customer session (`src/lib/supabase/server.ts` + `src/proxy.ts`) - see `component-library.md`'s "Server-side session + queries" section. `src/lib/dummyOrdersData.ts` is QA-only fallback now, not the primary data path.
+- **Sort order (decided 2026-09-09) is intentionally different per bucket** - upcoming by soonest `scheduled_time`, pending by most recently *submitted* (`created_at` desc), history by most recently *occurred* (`scheduled_time` desc) - see `fetchCustomerOrders`'s doc comment in `src/lib/queries/orders.ts` for the full reasoning (it's one consistent rule - "most relevant to right now first" - not three arbitrary ones).
+- **Layout is deliberately vertical/all-buckets-visible, with no tabs, filters, or search** - unlike the Professional section below, a customer has too few orders at once for tabs/filters/search to earn their complexity; revisit only if real usage shows otherwise.
 
 ### Professional
 - Pending jobs
@@ -426,6 +432,8 @@ Rules:
 - type
 - data (json)
 - created_at
+
+Both tables now have a real write path (2026-09-09, `accept_job`/`advance_job_status` in `supabase/sql/job_transitions.sql`) - previously read-only (via `job_assignments`'s join in `jobRow.ts`, `job_updates` for the urgent-notification banner), never written to by anything in this repo.
 
 ---
 

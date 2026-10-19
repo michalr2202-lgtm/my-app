@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Image, Pencil, StickyNote, Trash2, X } from "lucide-react";
+import { Image, StickyNote, X } from "lucide-react";
 import { BookingStepFooter } from "@/components/client/booking/BookingStepFooter";
+import { NoteField } from "@/components/client/booking/NoteField";
 import { COPY } from "@/lib/copy";
 
 const MAX_PHOTOS = 3;
@@ -59,6 +60,10 @@ export interface AttachmentsStepProps {
  *
  * Notes auto-save to local state on every keystroke (no separate "שמירה"
  * step, consistent with how every other answer in this flow is captured).
+ * The editing-textarea + filled-chip pair is `NoteField` (extracted
+ * 2026-09-06) - this screen keeps only the trigger button and the local
+ * `noteOpen`/`note` state; `CategoryServiceStep`'s "אחר" field reuses the
+ * same `NoteField` for its own textarea/chip, per product decision.
  * Photos are held here as File objects for client-side preview only
  * (object URLs, max 3) - actual upload to Supabase Storage is intentionally
  * not wired yet (no bucket/policy defined, and the Order doesn't exist
@@ -97,7 +102,21 @@ export function AttachmentsStep({
     // which matched the reported symptom of thumbnails/notes rendering
     // empty right after navigating back into this step until any change
     // was made.
+    //
+    // `setPhotoPreviews` below is what trips `react-hooks/set-state-in-
+    // effect` - deliberately suppressed (confirmed 2026-09-07, re-checked
+    // against the two genuinely-fixable cases that same day in
+    // `BookingFlowSheet.tsx`/`Combobox.tsx`), not left by oversight: this
+    // effect IS synchronizing with a real external system (the browser's
+    // object-URL lifecycle, create paired with revoke), which is exactly
+    // what `useEffect` is for - the rule can't distinguish that from
+    // "trivial derived state," and the actual bug-free alternative (a
+    // ref-keyed URL cache read via `useMemo`, cleaned up in a separate
+    // effect with no `setState` at all) added real complexity for zero
+    // behavioral improvement over this already-working, already-tested
+    // version.
     const previews = photos.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPhotoPreviews(previews);
     return () => {
       previews.forEach(({ url }) => URL.revokeObjectURL(url));
@@ -133,49 +152,16 @@ export function AttachmentsStep({
         </div>
 
         <div className="flex w-full flex-col gap-3">
-          {noteOpen ? (
-            <textarea
-              autoFocus
-              rows={3}
+          {noteOpen || trimmedNote ? (
+            <NoteField
               value={note}
-              onChange={(event) => setNote(event.target.value)}
-              onBlur={() => setNoteOpen(false)}
+              onChange={setNote}
+              open={noteOpen}
+              onOpenChange={setNoteOpen}
               placeholder={COPY.bookingFlow.attachments.notePlaceholder}
-              className="w-full resize-none rounded-card bg-surface-notification px-6 py-3 text-right text-sm leading-[1.4] text-text-primary shadow-notification outline-none placeholder:text-text-secondary"
+              editAriaLabel={COPY.bookingFlow.attachments.noteEditAriaLabel}
+              deleteAriaLabel={COPY.bookingFlow.attachments.noteDeleteAriaLabel}
             />
-          ) : trimmedNote ? (
-            <div className="flex w-full items-center gap-3 rounded-full bg-surface-notification px-6 py-3 shadow-notification">
-              {/* Symmetric px-6 (24px each side, refined 2026-09-03 from
-                  the trigger row's leading-icon pl-3/pr-6 asymmetry - see
-                  Figma node 8493:6694): this row leads with text, not an
-                  icon, so there's no single "leading edge" to give the
-                  extra 12px to anymore - both edges get the full 24px for
-                  balance. Edit (Pencil) trails the text first, closer to
-                  what it edits, delete (Trash2) last/outermost, gap-3
-                  (12px) apart, each at the standard 24px glyph size
-                  (confirmed 2026-09-03 - every icon on this screen renders
-                  at literal size={24}, no separate smaller-glyph-in-a-
-                  bigger-box treatment; see design-system.md "Icons"). */}
-              <p className="min-w-0 flex-1 truncate text-right text-sm leading-[1.4] text-text-primary">
-                {trimmedNote}
-              </p>
-              <button
-                type="button"
-                aria-label={COPY.bookingFlow.attachments.noteEditAriaLabel}
-                onClick={() => setNoteOpen(true)}
-                className="flex size-6 shrink-0 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
-              >
-                <Pencil size={24} strokeWidth={1.75} />
-              </button>
-              <button
-                type="button"
-                aria-label={COPY.bookingFlow.attachments.noteDeleteAriaLabel}
-                onClick={() => setNote("")}
-                className="flex size-6 shrink-0 items-center justify-center text-brand-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96]"
-              >
-                <Trash2 size={24} strokeWidth={1.75} />
-              </button>
-            </div>
           ) : (
             <button
               type="button"

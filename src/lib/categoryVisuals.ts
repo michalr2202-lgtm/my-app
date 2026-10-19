@@ -26,6 +26,32 @@ export function getCategoryColorClass(nameEn: string): string {
 }
 
 /**
+ * Same 4 fixed category tokens as `CATEGORY_COLOR_CLASS` above, as a
+ * `border-*` utility instead of `bg-*` (added 2026-09-29, Job Details
+ * screen's note box - see `JobDetailsScreen.tsx`). Tailwind generates both
+ * utilities from the same `--color-category-*` theme token automatically,
+ * so this is just a second named map over the identical 4 colors, not a
+ * second set of values to keep in sync.
+ */
+export const CATEGORY_BORDER_CLASS: Record<string, string> = {
+  handyman: "border-category-handyman",
+  plumber: "border-category-plumber",
+  electrician: "border-category-electrician",
+  ac: "border-category-ac",
+};
+
+/**
+ * Falls back to the app's brand blue (`border-brand-primary`, the note
+ * box's previous fixed color) for any category outside the 4 known ones -
+ * unlike `getCategoryColorClass`'s neutral gray fallback, blue reads fine
+ * as a border and keeps today's exact look for a category this map has no
+ * real answer for, rather than introducing a 3rd, unrelated color.
+ */
+export function getCategoryBorderClass(nameEn: string): string {
+  return CATEGORY_BORDER_CLASS[nameEn] ?? "border-brand-primary";
+}
+
+/**
  * Resolves a background color for any category, including ones outside the
  * 4 categories shown on the Home Screen (e.g. professional categories like
  * "contractor" used by the Active Job Card, which can belong to any
@@ -46,13 +72,16 @@ export function resolveCategoryBackground(category: {
 }
 
 /**
- * Fixed display order for the 4 known Home Screen categories, matching
- * Figma exactly (right-to-left visual order: electrician, ac, plumber,
- * handyman - verified against an isolated Figma node screenshot, since this
- * particular row is NOT affected by `sort_order`). Categories outside this
- * set are appended after, ordered by their own `sort_order`.
+ * Fixed display order for the 4 known Home Screen categories (updated
+ * 2026-09-18 per customer request - right-to-left visual order: plumber,
+ * handyman, electrician, ac). Shared by both `CategorySection` (Home
+ * Screen) and `CategoryStep` (booking flow's Flow 3 entry), so this one
+ * array controls the order everywhere categories are listed. This
+ * particular row is NOT affected by the DB's `sort_order` column.
+ * Categories outside this set are appended after, ordered by their own
+ * `sort_order`.
  */
-const CATEGORY_DISPLAY_ORDER = ["electrician", "ac", "plumber", "handyman"];
+const CATEGORY_DISPLAY_ORDER = ["plumber", "handyman", "electrician", "ac"];
 
 export function sortCategoriesForDisplay<T extends { name_en: string; sort_order: number }>(
   categories: T[]
@@ -67,13 +96,42 @@ export function sortCategoriesForDisplay<T extends { name_en: string; sort_order
   });
 }
 
+/**
+ * Category icon assets (updated 2026-09-18) - photographic "object" WebP
+ * images (e.g. a wrench for handyman) exported from Figma and converted
+ * via `scripts/convert-category-icon.mjs` at 216x216 (3x the 72px
+ * display size `CategoryCard` renders them at, for retina sharpness),
+ * replacing the previous flat SVG icon set. Re-run that script (see its
+ * own doc comment) for any future icon swap, rather than converting by
+ * hand, so every icon gets the same treatment.
+ */
 export const CATEGORY_ICON_SRC: Record<string, string> = {
-  handyman: "/icons/category-handyman.svg",
-  plumber: "/icons/category-plumber.svg",
-  electrician: "/icons/category-electrician.svg",
-  ac: "/icons/category-ac.svg",
+  handyman: "/icons/category-handyman.webp",
+  plumber: "/icons/category-plumber.webp",
+  electrician: "/icons/category-electrician.webp",
+  ac: "/icons/category-ac.webp",
 };
 
 export function getCategoryIconSrc(nameEn: string): string | null {
   return CATEGORY_ICON_SRC[nameEn] ?? null;
+}
+
+/**
+ * Professional "character" illustration assets (added 2026-09-28 for the
+ * Job Details screen, Figma node 9220:6130) - one full-figure illustration
+ * per category, distinct from `CATEGORY_ICON_SRC`'s small flat object
+ * icons above. Converted via the same `scripts/convert-category-icon.mjs`
+ * pipeline (`--native --crop-bottom=22`), saved at their native 420x630px
+ * (exactly 3x the screen's 140x210 display size - see that script's doc
+ * comment for the sizing back-and-forth this went through).
+ */
+export const PROFESSIONAL_CHARACTER_SRC: Record<string, string> = {
+  handyman: "/icons/professional-handyman.webp",
+  plumber: "/icons/professional-plumber.webp",
+  electrician: "/icons/professional-electrician.webp",
+  ac: "/icons/professional-ac.webp",
+};
+
+export function getProfessionalCharacterSrc(nameEn: string): string | null {
+  return PROFESSIONAL_CHARACTER_SRC[nameEn] ?? null;
 }

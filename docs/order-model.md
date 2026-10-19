@@ -121,6 +121,93 @@ Future states may be added only after product decisions.
 
 ---
 
+## Confirmed Transition Graph (v1)
+
+The lifecycle above describes the happy path plus a flat list of
+"possible alternative states" - it does not say *from* which state each
+alternative may be entered, or what may follow it. As of 2026-09-09 this
+is now enforced in code (`supabase/sql/job_transitions.sql`'s
+`accept_job`/`advance_job_status` RPCs, mirrored for UI-filtering in
+`src/lib/jobStatusTransitions.ts`), so this section documents exactly
+what that code enforces. Status names below use the DB/`JobStatus`
+snake_case form (e.g. `on_the_way`), not this document's Title Case
+labels, since this section is specifically about the enforced graph.
+
+- `draft` → `searching_professional` only (via `submit_booking`, not a
+  status-transition RPC - a job is created directly in
+  `searching_professional`, never actually created as `draft` today)
+- `searching_professional` → `confirmed` (via `accept_job` only, first
+  professional to accept wins), `cancelled`
+- `pending_approval` - unreachable in practice; `accept_job` intentionally
+  skips modeling it as its own step (see "Initial lifecycle" above)
+- `confirmed` → `on_the_way`, `cancelled`, `rescheduled`
+- `on_the_way` → `arrived`, `waiting_for_customer`, `cancelled`,
+  `rescheduled`
+- `arrived` → `in_progress`, `waiting_for_customer`, `cancelled`,
+  `rescheduled`
+- `waiting_for_customer` → `on_the_way`, `arrived`, `cancelled` (resumes
+  into whichever of the two it paused from)
+- `in_progress` → `completed`, `rescheduled`, `waiting_for_professional`,
+  `cancelled`
+- `waiting_for_professional` → `in_progress`, `cancelled`
+- `rescheduled` → `confirmed` (once a new `scheduled_time` is set,
+  rejoins the normal happy path)
+- `completed`, `cancelled` - terminal, no outgoing transitions
+
+### Confirmed decisions behind this graph
+
+- **`cancelled` is permanently terminal** - once cancelled, a job can
+  never be revived into any other status (confirmed by the customer,
+  2026-09-09).
+- **`rescheduled` always resolves back to `confirmed`** once a new time is
+  set - this is also the path for "professional started the job but
+  couldn't finish it this session" (`in_progress` → `rescheduled`,
+  confirmed 2026-09-09), and for "ran into a problem before starting
+  work" (`on_the_way`/`arrived` → `rescheduled`, confirmed for
+  `on_the_way` 2026-09-09; extended to `arrived` as the same kind of
+  moment, not separately confirmed - see open questions below).
+- **Enforcement is intentionally two-layered** (customer decision,
+  2026-09-09): the RPCs are the source of truth and reject illegal
+  transitions outright; any UI (today, the dev-only test harness at
+  `src/app/dev/job-actions/page.tsx`; later, the real professional app)
+  only ever offers the currently-valid next statuses, so a legitimate
+  user never hits the backend's rejection in normal use.
+
+### Open questions (not yet decided - do not build against these)
+
+- **Cancellation cutoff.** Whether *who* is cancelling (customer vs.
+  professional) and a time-based point after which cancellation must go
+  through customer support instead of the app, rather than being
+  possible from the app at all - v1 allows `cancelled` from every
+  non-terminal status above as a placeholder, not a real rule. The
+  business rules for this (confirmed customer-side window, partially-open
+  professional-side window, and the customer-service escalation path) now
+  live in [docs/cancellation-and-rescheduling.md](cancellation-and-rescheduling.md)
+  - that document, not this bullet, is the source of truth going forward.
+- **Known mismatch (confirmed 2026-09-10, not yet fixed in code):** every
+  `→ cancelled` edge in the graph above is written as if "cancel" always
+  means the terminal, irreversible ending. It does not - a *professional*
+  cancelling a job they'd already confirmed should return the job to
+  `searching_professional` instead (the customer still wants the service,
+  just needs a different professional), while a *customer* cancelling
+  still ends in terminal `cancelled`. The RPCs can't yet tell these two
+  triggering actions apart (no professional session/role exists), so this
+  is deliberately left unfixed rather than guessed at - see
+  [docs/cancellation-and-rescheduling.md](cancellation-and-rescheduling.md)'s
+  "Reassignment on Professional Cancellation" section for the full
+  reasoning.
+- **`incomplete_work`'s fate.** This status still exists in `JobStatus`
+  but is unreachable in the graph above - "didn't finish this session"
+  now routes through `rescheduled` instead (see above). Whether
+  `incomplete_work` is removed from `JobStatus` entirely, or repurposed
+  for something else, is undecided.
+- **Full professional-side "ran into a problem" flow.** The graph above
+  only models the resulting status transition (`on_the_way`/`arrived` →
+  `rescheduled` or `cancelled`); the actual professional-facing
+  screen/flow that triggers it has not been designed yet.
+
+---
+
 # Order Sections
 
 An Order is composed of logical information groups.

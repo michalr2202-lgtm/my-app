@@ -116,3 +116,52 @@ export function buildScheduledTime(date: Date, startHour: number): Date {
   result.setHours(startHour, 0, 0, 0);
   return result;
 }
+
+const URGENT_NOW_ROUNDING_MINUTES = 30;
+
+/**
+ * `BookingFlowSheet`'s "urgent now" fallback `scheduledTime` (added
+ * 2026-09-07, replacing a raw, unrounded `new Date()` - see
+ * `client-booking-flow-prd.md` Step 3's "Home Screen Time Pill entry"
+ * bullet). Every other path reaches this step's real `SchedulingHourStep`
+ * and always lands on a round hour; "urgent now" skips that step entirely
+ * (there's nothing to pick, it's "right now"), so without this the
+ * recap/`ActiveJobCard` would otherwise show an ugly window like
+ * "14:37-15:37" instead of a clean block.
+ *
+ * Two confirmed decisions (2026-09-07):
+ *
+ * 1. Rounds UP only, to the nearest half-hour - never down. A floor could
+ *    let the displayed 1-hour window's end land *before* the real
+ *    60-minute arrival guarantee (`project-prd.md` "Immediate ('Now')
+ *    Job Matching"), understating what's actually promised. Half-hour
+ *    (not full-hour) granularity was chosen specifically to keep the
+ *    worst-case/average gap between this display and that real guarantee
+ *    roughly half of what full-hour-only rounding would produce (89 min
+ *    vs. 119 min worst case), at the cost of occasionally starting on a
+ *    ":30" instead of always ":00" - confirmed an acceptable trade-off.
+ * 2. Deliberately has NO business-hours cap. A cap (e.g. clamping a
+ *    17:45 request back to the last bookable slot, 17:00) was
+ *    investigated and found unsound: rounding alone can never push a
+ *    time from *before* an hour to *after* it (the half-hour boundaries
+ *    straddle every hour exactly), so the only way to "cap" a late
+ *    request is to clamp it *backward* - which would display a window
+ *    that already looks past relative to the real request, worse than
+ *    the overstatement problem this function exists to solve.
+ *    "Immediate Now" has no business-hours gate in the PRD anyway (it's
+ *    a 24/7 feature), so an occasional result like "18:00-18:30" or
+ *    "02:30-03:30" is the correct, honest behavior here, even though the
+ *    *scheduled* flow's own slot list (`getHourSlots` above) never
+ *    offers those hours.
+ */
+export function roundUrgentNowScheduledTime(now: Date): Date {
+  const result = new Date(now);
+  const hasRemainder = result.getSeconds() !== 0 || result.getMilliseconds() !== 0;
+  const totalMinutes = result.getHours() * 60 + result.getMinutes() + (hasRemainder ? 1 : 0);
+  const roundedMinutes = Math.ceil(totalMinutes / URGENT_NOW_ROUNDING_MINUTES) * URGENT_NOW_ROUNDING_MINUTES;
+  // `setHours`'s minutes argument normalizes overflow on its own (e.g.
+  // 1440 -> next day 00:00), so a request near midnight rolls over
+  // correctly without any separate day-boundary handling here.
+  result.setHours(0, roundedMinutes, 0, 0);
+  return result;
+}

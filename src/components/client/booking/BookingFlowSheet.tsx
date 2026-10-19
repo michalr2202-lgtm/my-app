@@ -7,6 +7,9 @@ import {
   SearchMatchStep,
   type SearchMatchServiceOption,
 } from "@/components/client/booking/SearchMatchStep";
+import { CategoryStep } from "@/components/client/booking/CategoryStep";
+import { CategoryServiceStep } from "@/components/client/booking/CategoryServiceStep";
+import { ServiceConfirmStep } from "@/components/client/booking/ServiceConfirmStep";
 import { BookingMessageStep } from "@/components/client/booking/BookingMessageStep";
 import { SchedulingDateStep } from "@/components/client/booking/SchedulingDateStep";
 import { SchedulingHourStep } from "@/components/client/booking/SchedulingHourStep";
@@ -31,13 +34,17 @@ import {
 import { CITIES } from "@/lib/addresses";
 import { COPY } from "@/lib/copy";
 import { NO_MATCH_OPTION_ID, type MatchOutcomeKind } from "@/lib/ai/matchTypes";
-import { getHourSlots } from "@/lib/scheduling";
+import { getHourSlots, roundUrgentNowScheduledTime } from "@/lib/scheduling";
 import { supabase } from "@/lib/supabase";
-import type { Address } from "@/lib/types";
+import { uploadJobAttachments } from "@/lib/queries/jobAttachments";
+import type { Address, Category, ServiceWithCategory, TimeSelection } from "@/lib/types";
 
 type SheetPhase =
   | "loading"
   | "match"
+  | "category"
+  | "category_service"
+  | "service_confirm"
   | "no_professionals"
   | "no_service_match"
   | "no_price_yet"
@@ -70,7 +77,52 @@ interface MatchApiResponse {
 
 export interface BookingFlowSheetProps {
   open: boolean;
+  /** Search-box entry (Flow 1) - mutually exclusive with `timeSelection`/`categoryId` below. */
   query: string | null;
+  /**
+   * Time Pill entry (Flow 2, added 2026-09-06 - see
+   * `client-booking-flow-prd.md` §3 "Entry Point Mapping"). Mutually
+   * exclusive with `query`/`categoryId` - `ClientHomeScreen` only ever
+   * sets one of the three before opening. `"urgent_now"` additionally
+   * skips Scheduling (Step 3) entirely once a service is picked (see
+   * `advanceToScheduling`) and shows the extra urgency-framing block on
+   * `CategoryStep`; `"schedule_later"` reaches the exact same Step 1/2
+   * screens but continues into Scheduling normally, same as every other
+   * entry point.
+   */
+  timeSelection: TimeSelection | null;
+  /**
+   * Category Card entry point (Flow 3, added 2026-09-07 - see
+   * `client-booking-flow-prd.md` §3 "Entry Point Mapping"). Mutually
+   * exclusive with `query`/`timeSelection` above. Reaches the *exact*
+   * same `CategoryServiceStep` (Step 2) the Time Pill entry's
+   * `CategoryStep` (Step 1) leads to - just skipping Step 1 entirely,
+   * since the category is already known (the card the customer tapped),
+   * not something to ask about. Nothing about this prop or the logic
+   * below is category-specific - all 4 Home Screen cards use it the same
+   * way (see `ClientHomeScreen`'s `handleSelectCategory`).
+   */
+  categoryId: string | null;
+  /**
+   * Service Pill entry point (Flow 4, added 2026-09-07 - see
+   * `client-booking-flow-prd.md` §3 "Entry Point Mapping"). Mutually
+   * exclusive with `query`/`timeSelection`/`categoryId` above. Reaches the
+   * *exact* same `ServiceConfirmStep` (Step 2.5 - new, lightweight screen
+   * just to confirm and continue) regardless of which service pill was
+   * tapped - both the service *and* its category are already known here
+   * (the pill tapped), so unlike every other entry point there is no
+   * pill grid or category to pick at all, just a straight confirm ->
+   * Scheduling.
+   */
+  serviceId: string | null;
+  /**
+   * The full active catalog (already fetched once for the Home Screen -
+   * see `page.tsx`) - reused here for Flow 2/3's `CategoryStep`/
+   * `CategoryServiceStep` rather than re-fetching, since every entry
+   * point needs the exact same data Home already loaded.
+   */
+  categories: Category[];
+  catalogServices: ServiceWithCategory[];
   onClose: () => void;
 }
 
@@ -116,12 +168,54 @@ function formatSavedAddressLine(address: Address): string {
  * "Step Screen Reveal Rule" - a screen never shows a second question until
  * "הבא" is pressed).
  *
- * Search path: match priced services → pick (+ Next) → Scheduling (date → hour);
- * "אין התאמה" + Next → no-service-match message (distinct from the
- * no-professionals message below - the matcher DID find services to show,
- * the user just said none fit, so this points them at rephrasing instead);
- * matcher couldn't identify any category at all → no-professionals message;
- * category known without priced service → no-price-yet message → continue → Scheduling.
+ * Search path (Flow 1, `query` prop): match priced services → pick (+ Next)
+ * → Scheduling (date → hour); "אין התאמה" + Next → no-service-match message
+ * (distinct from the no-professionals message below - the matcher DID find
+ * services to show, the user just said none fit, so this points them at
+ * rephrasing instead); matcher couldn't identify any category at all →
+ * no-professionals message; category known without priced service →
+ * no-price-yet message → continue → Scheduling.
+ *
+ * Time Pill path (Flow 2, `timeSelection` prop, added 2026-09-06 - see
+ * `client-booking-flow-prd.md` §3 "Entry Point Mapping"): `CategoryStep`
+ * (pick one of the 4 fixed categories, `urgent` framing shown only for
+ * "urgent_now") → `CategoryServiceStep` (pick one of that category's
+ * catalog services - or type a free-text description into its "אחר"
+ * field, which runs the *exact same* AI classification as the search path
+ * via `handleCategoryOtherNext`, landing on `match`/`no_price_yet`/
+ * `no_professionals` exactly like the search path would, just with
+ * `SearchMatchStep`'s heading swapped to echo that typed description
+ * instead of a search-box query - see that handler and
+ * `SearchMatchStep`'s `headingOverride`/`professionLabelOverride` props)
+ * → Scheduling, same as the search path - **except** "urgent_now"
+ * specifically, which skips Scheduling entirely and goes straight to
+ * Attachments (see `advanceToScheduling`), leaving `scheduledTime` as
+ * submission time.
+ *
+ * Category Card path (Flow 3, `categoryId` prop, added 2026-09-07 - see
+ * `client-booking-flow-prd.md` §3 "Entry Point Mapping"): lands directly
+ * on `CategoryServiceStep`, skipping `CategoryStep` (Step 1) entirely -
+ * the category is already known (one of the 4 Home Screen cards tapped),
+ * not something to ask about, so there's no screen shown before it and
+ * no "הקודם" off of it either (`history` starts empty for this path,
+ * same as `category` does for Flow 2). Continues from there exactly like
+ * Flow 2 does - ordinary service pill or "אחר" free text, then
+ * Scheduling.
+ *
+ * Service Pill path (Flow 4, `serviceId` prop, added 2026-09-07 - see
+ * `client-booking-flow-prd.md` §3 "Entry Point Mapping"): lands directly
+ * on `ServiceConfirmStep`, skipping both `CategoryStep` and
+ * `CategoryServiceStep` entirely - the *specific service* is already known
+ * (one of the Home Screen's Popular Services pills tapped), not just its
+ * category, so there's nothing left to ask about, only to confirm. No
+ * pill grid, no "אחר" field - one screen showing the chosen service +
+ * price, then its matching profession, then straight to Scheduling (same
+ * `advanceToScheduling` every other path uses).
+ *
+ * All four entry points reuse `categories`/`catalogServices` (props,
+ * already fetched once for the Home Screen - see `page.tsx`) rather than
+ * fetching again.
+ *
  * Scheduling (date, then hour, each its own screen; date → no_slots_for_date
  * instead of hour if today no longer has any 1-hour-lead-time slots left)
  * → Attachments (one screen, notes + photos both always visible - see
@@ -143,12 +237,48 @@ function formatSavedAddressLine(address: Address): string {
  * now always takes one extra step to a plain, guaranteed-to-fit Confirm
  * screen instead - see `ConfirmStep`'s doc comment.
  */
-export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps) {
+export function BookingFlowSheet({
+  open,
+  query,
+  timeSelection,
+  categoryId,
+  serviceId,
+  categories,
+  catalogServices,
+  onClose,
+}: BookingFlowSheetProps) {
   const [phase, setPhase] = useState<SheetPhase>("loading");
   const [history, setHistory] = useState<SheetPhase[]>([]);
   const [resolvedQuery, setResolvedQuery] = useState("");
+  /**
+   * The AI-matched/identified category label - shown on `SearchMatchStep`/
+   * `no_price_yet` and used for `buildRecap`'s final `categoryLabel` (the
+   * actual category the job books under). NOT the same thing as "the
+   * category picked directly on `CategoryStep`" - see
+   * `selectedCategoryLabel` below, which is what `CategoryServiceStep`'s
+   * own header actually needs; conflating the two here (fixed 2026-09-06)
+   * used to make that header silently show a *different* category after a
+   * "הקודם" back from a `handleCategoryOtherNext` round trip that
+   * reclassified into a different one.
+   */
   const [categoryLabel, setCategoryLabel] = useState<string | null>(null);
+  /** The AI-matched services shown on `SearchMatchStep` - see `categoryServices` below for why this is a separate state from the Time Pill entry's per-category catalog list. */
   const [services, setServices] = useState<SearchMatchServiceOption[]>([]);
+  /**
+   * `CategoryStep`'s picked category's full ≤10-service catalog, shown on
+   * `CategoryServiceStep` - deliberately a *separate* state from `services`
+   * above (fixed 2026-09-06; they used to be the same variable), because
+   * `handleCategoryOtherNext`'s AI reclassification also writes into
+   * `services` when its outcome is "services" (for the `match` phase) -
+   * sharing one variable meant a "הקודם" back from that reclassification
+   * silently swapped `CategoryServiceStep`'s original 10-service list for
+   * whatever 1-3 services the AI just matched (possibly from a different
+   * category entirely), which is what actually produced the "editing the
+   * 'אחר' field back on this screen looks broken" symptom reported that
+   * day - the field's own text was restoring correctly the whole time, but
+   * the *service pills around it* had silently changed underneath it.
+   */
+  const [categoryServices, setCategoryServices] = useState<SearchMatchServiceOption[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   /**
    * Only set for the "no_price_yet" phase (see `runMatch` below) - the
@@ -161,6 +291,55 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * copy-deck.md).
    */
   const [diagnosisServiceId, setDiagnosisServiceId] = useState<string | null>(null);
+  /**
+   * The category id picked on `CategoryStep` (Time Pill entry only) -
+   * needed so `handleCategoryOtherNext` below can tell whether the AI's
+   * own classification of the "אחר" field's free text lands back on this
+   * same category or a different one (see `matchedCategoryDiffersFromSelection`).
+   * `categoryLabel` alone isn't enough for that comparison since it gets
+   * overwritten by the AI response either way.
+   */
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  /**
+   * The category label picked on `CategoryStep` - what `CategoryServiceStep`'s
+   * own header ("המקצוע הנבחר:") always shows, *regardless* of what
+   * `categoryLabel` (above) later gets reclassified to via the "אחר"
+   * field. Kept as its own state (fixed 2026-09-06, same underlying bug as
+   * `categoryServices`) rather than reusing `categoryLabel` for both.
+   */
+  const [selectedCategoryLabel, setSelectedCategoryLabel] = useState<string | null>(null);
+  /**
+   * Restores `CategoryServiceStep`'s "אחר" field text across a "הקודם"/
+   * "הבא" round-trip through `match` - but only while `selectedCategoryId`
+   * stays the same. Cleared by `handleCategoryNext` whenever a genuinely
+   * *different* category is picked on Step 1 (added 2026-09-07) - a draft
+   * written against one category's context shouldn't silently reappear
+   * under a different one.
+   */
+  const [categoryOtherText, setCategoryOtherText] = useState("");
+  /** True only while `handleCategoryOtherNext`'s fetch is in flight - disables `CategoryServiceStep`'s "הבא", same pattern as `submitting` on `ConfirmStep`. */
+  const [analyzingOther, setAnalyzingOther] = useState(false);
+  /**
+   * Which entry produced the current `resolvedQuery`/`categoryLabel`/
+   * `services` - `"search"` (Flow 1, the search box) or `"categoryOther"`
+   * (Time Pill entry's `CategoryServiceStep` "אחר" field, added
+   * 2026-09-06). Both land on the exact same `match`/`no_price_yet`/
+   * `no_professionals` phases via the exact same AI classification call -
+   * this only decides how `SearchMatchStep` labels the echoed text/
+   * profession block (see its `headingOverride`/`professionLabelOverride`
+   * props), nothing else.
+   */
+  const [matchSource, setMatchSource] = useState<"search" | "categoryOther">("search");
+  /**
+   * Computed once, when `handleCategoryOtherNext`'s response arrives -
+   * whether the AI's classification landed on a different category than
+   * the one already picked on `CategoryStep`. Drives whether
+   * `SearchMatchStep`'s profession-match block shows at all for this
+   * `matchSource` (per product decision 2026-09-06: showing it when the
+   * category is unchanged from the customer's own Step 1 pick would just
+   * be redundant - it only earns a callout when it disagrees).
+   */
+  const [matchedCategoryDiffersFromSelection, setMatchedCategoryDiffersFromSelection] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
   /**
@@ -228,7 +407,27 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    */
   const [jobCreatedTier, setJobCreatedTier] = useState<"nearTerm" | "scheduled">("nearTerm");
 
-  const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+  // Checked against both lists - the final pick could have come from
+  // either `services` (an AI match, search box or "אחר") or
+  // `categoryServices` (an ordinary Time Pill catalog pick).
+  const selectedService =
+    services.find((service) => service.id === selectedServiceId) ??
+    categoryServices.find((service) => service.id === selectedServiceId) ??
+    // Flow 4's `service_confirm` phase never populates `services`/
+    // `categoryServices` (there's no matching/category-catalog step to
+    // populate them) - this fallback resolves straight from the full
+    // catalog prop instead, so `buildRecap`'s existing
+    // `selectedService?.label_he` usage works for this flow too, with no
+    // other change needed there.
+    catalogServices.find((service) => service.id === selectedServiceId) ??
+    null;
+  /**
+   * Derived directly from the `timeSelection` prop rather than copied into
+   * state - it's stable for the whole sheet-open session (set once by
+   * `ClientHomeScreen` before `open` flips true, cleared alongside it in
+   * `handleCloseBooking`), so there's nothing to synchronize.
+   */
+  const isUrgentNow = timeSelection === "urgent_now";
 
   const reset = useCallback(() => {
     setPhase("loading");
@@ -236,8 +435,15 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     setResolvedQuery("");
     setCategoryLabel(null);
     setServices([]);
+    setCategoryServices([]);
     setSelectedServiceId(null);
     setDiagnosisServiceId(null);
+    setSelectedCategoryId(null);
+    setSelectedCategoryLabel(null);
+    setCategoryOtherText("");
+    setAnalyzingOther(false);
+    setMatchSource("search");
+    setMatchedCategoryDiffersFromSelection(false);
     setSelectedDate(null);
     setSelectedHour(null);
     setFlowNow(new Date());
@@ -370,11 +576,102 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     }
   };
 
+  /**
+   * Whether `reset()` has already run for the *current* `open` session
+   * (fixed 2026-09-07, was a `react-hooks/set-state-in-effect` error on
+   * both effects below calling `reset()` directly in their body). Flips
+   * back to `false` the render after `open` becomes `false`, so
+   * re-opening - even with the exact same `query`/`timeSelection` as last
+   * time - reliably resets again, matching the old effect-based
+   * version's actual behavior (its dependency arrays included `open`
+   * itself, so they re-ran on every open regardless of whether `query`/
+   * `timeSelection` had actually changed from last time).
+   *
+   * Calling `reset()` here - during render, guarded so it only fires once
+   * per open session - rather than inside a `useEffect`, follows react.
+   * dev's documented "Resetting all state when a prop changes" pattern:
+   * effects are for synchronizing with external systems, and an
+   * unconditional prop-driven state reset isn't one - only `runMatch`'s
+   * actual network request below still needs its own effect.
+   */
+  const [hasInitializedEntry, setHasInitializedEntry] = useState(false);
+  if (!open && hasInitializedEntry) {
+    setHasInitializedEntry(false);
+  }
+  if (open && !hasInitializedEntry && (query?.trim() || timeSelection || categoryId || serviceId)) {
+    setHasInitializedEntry(true);
+    reset();
+    if (timeSelection) {
+      // Flow 2 (Time Pill) needs no fetch, unlike the search path below -
+      // `categories`/`catalogServices` are already-loaded props - so this
+      // jumps straight to `CategoryStep`.
+      setPhase("category");
+    } else if (categoryId) {
+      // Flow 3 (Category Card, added 2026-09-07) - same synchronous
+      // half `handleCategoryNext` does (everything except the async
+      // diagnosis-placeholder fetch, which can't run here - see the
+      // dedicated effect below for that half, mirroring `runMatch`'s own
+      // split between this render-time guard and its effect). Leaves
+      // `phase` at "loading" until that effect lands on
+      // `category_service` - there's no Step 1 to show first in this
+      // flow, so nothing else needs to render in between.
+      setSelectedCategoryId(categoryId);
+      const category = categories.find((cat) => cat.id === categoryId);
+      setCategoryLabel(category?.label_he ?? null);
+      setSelectedCategoryLabel(category?.label_he ?? null);
+      setCategoryServices(catalogServices.filter((service) => service.category_id === categoryId));
+    } else if (serviceId) {
+      // Flow 4 (Service Pill, added 2026-09-07) - fully synchronous,
+      // unlike Flow 3's `categoryId` branch above: every service in
+      // `catalogServices` is already `is_active = true` and never a
+      // diagnosis placeholder (see `services.ts`'s doc comment -
+      // placeholders are deliberately excluded from this list), so
+      // there's nothing further to fetch, the service is always fully
+      // real and priced. Lands directly on `service_confirm`, skipping
+      // both `category`/`category_service` entirely.
+      const service = catalogServices.find((s) => s.id === serviceId);
+      setSelectedServiceId(serviceId);
+      setCategoryLabel(service?.category?.label_he ?? null);
+      setSelectedCategoryLabel(service?.category?.label_he ?? null);
+      setPhase("service_confirm");
+    }
+  }
+
+  /**
+   * Flow 3 entry (Category Card, added 2026-09-07) - the async half of
+   * the render-time guard above (`fetchDiagnosisPlaceholderServiceId`
+   * can't run there, same reasoning as `runMatch`'s fetch below).
+   * Mirrors `handleCategoryNext`'s own diagnosis-placeholder fetch
+   * exactly, just landing directly on `category_service` instead of
+   * `advanceTo`-ing there from `category` - there's no Step 1 in this
+   * flow to advance from, and `advanceTo` would incorrectly push
+   * whatever phase preceded this ("loading") onto `history`.
+   */
+  useEffect(() => {
+    if (!open || !categoryId) return;
+    // Narrowed into a local const - TS doesn't carry the guard above's
+    // narrowing into `loadCategory`'s closure otherwise (`categoryId`
+    // stays typed `string | null` there).
+    const currentCategoryId = categoryId;
+    let cancelled = false;
+
+    async function loadCategory() {
+      const placeholderId = await fetchDiagnosisPlaceholderServiceId(currentCategoryId);
+      if (cancelled) return;
+      setDiagnosisServiceId(placeholderId);
+      setPhase("category_service");
+    }
+
+    void loadCategory();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, categoryId]);
+
   useEffect(() => {
     if (!open || !query?.trim()) return;
 
     let cancelled = false;
-    reset();
 
     async function runMatch() {
       try {
@@ -420,7 +717,7 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     return () => {
       cancelled = true;
     };
-  }, [open, query, reset]);
+  }, [open, query]);
 
   // Step 5's skip condition - independent of the search/scheduling draft
   // above, so it's checked once per sheet open rather than per query.
@@ -456,6 +753,37 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
     reset();
   };
 
+  /**
+   * Advances past service selection into Scheduling (Step 3) - except for
+   * the "urgent_now" Time Pill entry (added 2026-09-06), which pre-selects
+   * "now" and skips Step 3 entirely (per `client-booking-flow-prd.md` §3
+   * "Entry Point Mapping"): `selectedDate`/`selectedHour` simply stay
+   * `null`, so `buildRecap`'s `scheduledTime` falls back to `new Date()`
+   * (submission time) on its own - no separate "is now" flag needed, and
+   * `submitBooking`'s SLA-tier check already treats a `scheduledTime` this
+   * close to `flowNow` as the near-term tier for free (see that function).
+   * Shared by every path that reaches Scheduling: `handleNext` (Flow 1,
+   * AI-matched services) and `handleContinueWithoutPrice`/
+   * `handleCategoryServiceNext` below (both "no priced service, continue
+   * anyway" and Flow 2's ordinary service pick).
+   */
+  const advanceToScheduling = () => {
+    advanceTo(isUrgentNow ? "attachments" : "scheduling_date");
+  };
+
+  /**
+   * `ServiceConfirmStep`'s onNext (Flow 4, added 2026-09-07) - nothing left
+   * to select at this point (both service and category were already known
+   * from the pill tapped on Home), so this just advances straight to
+   * Scheduling like every other path's service-selection step does.
+   * `isUrgentNow` is correctly always `false` here (`timeSelection` is
+   * null for this entry), so this always lands on `scheduling_date`, never
+   * the urgent-now shortcut - matching the PRD's Flow 4 row.
+   */
+  const handleServiceConfirmNext = () => {
+    advanceToScheduling();
+  };
+
   const handleNext = (selectionId: string) => {
     setSelectedServiceId(selectionId);
 
@@ -468,11 +796,122 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       return;
     }
 
-    advanceTo("scheduling_date");
+    advanceToScheduling();
   };
 
   const handleContinueWithoutPrice = () => {
-    advanceTo("scheduling_date");
+    advanceToScheduling();
+  };
+
+  /**
+   * Step 1 → Step 2 for the Time Pill entry (Flow 2, added 2026-09-06) -
+   * `CategoryStep`'s onNext. Filters the already-loaded `catalogServices`
+   * prop down to the picked category into `categoryServices` (its own
+   * state, deliberately distinct from `services` - see that state's doc
+   * comment for why sharing one variable used to be a real bug) and
+ * resolves that category's diagnosis-priced placeholder up front -
+ * needed only if the "אחר" field's AI classification comes back
+ * "category known without priced service", fetched here rather than
+ * there so that screen's own Next handler stays sync. Also clears
+ * `categoryOtherText`/`selectedServiceId` first if `categoryId` differs
+ * from whatever was previously selected (added 2026-09-07) - see
+ * `categoryOtherText`'s own doc comment.
+ */
+  const handleCategoryNext = async (categoryId: string) => {
+    if (categoryId !== selectedCategoryId) {
+      // A genuinely *different* category than whatever was picked before
+      // (added 2026-09-07) - `CategoryServiceStep`'s own draft (a typed
+      // "אחר" description, or a selected service pill) belonged to the
+      // old category's context and shouldn't silently carry over into
+      // this new one. Re-picking the *same* category is deliberately left
+      // alone - `initialSelectedId`/`initialOtherText` below still
+      // restore exactly as before in that case.
+      setCategoryOtherText("");
+      setSelectedServiceId(null);
+    }
+    setSelectedCategoryId(categoryId);
+    const category = categories.find((cat) => cat.id === categoryId);
+    // Both set to the same value here, then diverge only if the "אחר"
+    // field later reclassifies (see `handleCategoryOtherNext`, which
+    // overwrites `categoryLabel` alone) - for an ordinary catalog pill
+    // pick, the category never changes, so both stay in sync and
+    // `categoryLabel` is already correct for `buildRecap` without either
+    // `handleCategoryServiceNext` or `buildRecap` needing to know which
+    // case they're in.
+    setCategoryLabel(category?.label_he ?? null);
+    setSelectedCategoryLabel(category?.label_he ?? null);
+    setCategoryServices(catalogServices.filter((service) => service.category_id === categoryId));
+    const placeholderId = await fetchDiagnosisPlaceholderServiceId(categoryId);
+    setDiagnosisServiceId(placeholderId);
+    advanceTo("category_service");
+  };
+
+  /** Step 2's onNext for the Time Pill entry - an ordinary catalog service pick. */
+  const handleCategoryServiceNext = (selectionId: string) => {
+    setSelectedServiceId(selectionId);
+    advanceToScheduling();
+  };
+
+  /**
+   * `CategoryServiceStep`'s "אחר" field onNext (reworked 2026-09-06 from a
+   * plain `NO_MATCH_OPTION_ID` pill into a typed free-text description,
+   * per product decision - see that component's doc comment). Runs the
+   * *exact same* AI classification `runMatch` uses for the search box,
+   * against the same closed catalog, then routes to whichever of
+   * `match`/`no_price_yet`/`no_professionals`/`error` its outcome implies -
+   * there is no fourth "the customer picked this category directly"
+   * variant anymore: once free text is being classified by the matcher,
+   * "זיהינו ש..." is accurate regardless of entry point (see
+   * `BookingMessageStep`'s doc comment).
+   */
+  const handleCategoryOtherNext = async (description: string) => {
+    setCategoryOtherText(description);
+    setMatchSource("categoryOther");
+    setAnalyzingOther(true);
+    try {
+      const response = await fetch("/api/ai/match-services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: description }),
+      });
+      const data = (await response.json()) as MatchApiResponse;
+      if (!response.ok) {
+        advanceTo("error");
+        return;
+      }
+      setResolvedQuery(data.query);
+      setCategoryLabel(data.categoryLabel);
+      setMatchedCategoryDiffersFromSelection(
+        Boolean(data.categoryId && selectedCategoryId && data.categoryId !== selectedCategoryId),
+      );
+      // Cleared on every classification (not just the first): the "אחר"
+      // field can be re-submitted more than once per sheet session (edit
+      // the text on "הקודם", press "הבא" again), unlike `runMatch`'s
+      // one-shot search-box entry - without this, a stale id from a
+      // previous pass' `services` list could silently pre-satisfy
+      // `SearchMatchStep`'s `canContinue` against a list that no longer
+      // contains it.
+      setSelectedServiceId(null);
+
+      if (data.outcome === "services") {
+        setServices(data.matches.map((match) => match.service));
+        advanceTo("match");
+        return;
+      }
+      if (data.outcome === "category_without_priced_service") {
+        const placeholderId = data.categoryId
+          ? await fetchDiagnosisPlaceholderServiceId(data.categoryId)
+          : null;
+        setDiagnosisServiceId(placeholderId);
+        advanceTo("no_price_yet");
+        return;
+      }
+      advanceTo("no_professionals");
+    } catch {
+      advanceTo("error");
+    } finally {
+      setAnalyzingOther(false);
+    }
   };
 
   const handleDateSelected = (date: Date) => {
@@ -522,7 +961,15 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
    * + address on `ConfirmStep`, not just the brand-new one.
    */
   const buildRecap = (profileFields?: NewUserDetailsValues): OrderRecapProps => {
-    const scheduledTime = selectedDate ? new Date(selectedDate) : new Date();
+    // The `roundUrgentNowScheduledTime` fallback only ever applies to
+    // "urgent now" (the only path that reaches `buildRecap` with both
+    // `selectedDate`/`selectedHour` still null - see `advanceToScheduling`).
+    // Rounds `flowNow` (frozen at sheet-open, not a fresh `new Date()`) so
+    // this stays stable across re-renders of the Confirm screen and
+    // matches exactly what `submitBooking`'s own `buildRecap` call below
+    // sends to `submit_booking` - see that function's doc comment for why
+    // a floor/no-rounding fallback would be wrong here.
+    const scheduledTime = selectedDate ? new Date(selectedDate) : roundUrgentNowScheduledTime(flowNow);
     if (selectedHour !== null) scheduledTime.setHours(selectedHour, 0, 0, 0);
 
     // Always already fully up to date (added/edited addresses persist
@@ -600,7 +1047,10 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       recap.scheduledTime.getTime() - flowNow.getTime() < 2 * 60 * 60 * 1000 ? "nearTerm" : "scheduled";
 
     try {
-      const { error } = await supabase.rpc("submit_booking", {
+      // `data` is the new job's id (`submit_booking returns uuid`) - added
+      // 2026-09-08 for photo persistence (Phase 3) below; previously
+      // discarded entirely since nothing needed it yet.
+      const { data: jobId, error } = await supabase.rpc("submit_booking", {
         p_service_id: selectedServiceId ?? diagnosisServiceId,
         p_scheduled_time: recap.scheduledTime.toISOString(),
         p_notes: note.trim() || null,
@@ -628,6 +1078,14 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       // see `loadReturningProfile`'s doc comment.
       if (session) {
         void loadReturningProfile(session.user.id, session.user.phone);
+      }
+      // Photo persistence (Phase 3, 2026-09-08) - fire-and-forget: per
+      // `uploadJobAttachments`'s doc comment, a photo upload hiccup must
+      // not block reaching "job created" for an already-successfully-
+      // created job. Requires `supabase/sql/job_attachments.sql` to have
+      // been run manually first (bucket/table/RLS).
+      if (jobId && photos.length > 0) {
+        void uploadJobAttachments(supabase, jobId, photos);
       }
       setJobCreatedTier(tier);
       setPhase("job_created");
@@ -752,6 +1210,44 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
           kind="noPriceYet"
           categoryLabel={categoryLabel}
           onPrimaryAction={handleContinueWithoutPrice}
+          onPrevious={history.length > 0 ? handlePrevious : undefined}
+        />
+      ) : null}
+
+      {phase === "category" ? (
+        <CategoryStep
+          categories={categories}
+          urgent={isUrgentNow}
+          onNext={(categoryId) => void handleCategoryNext(categoryId)}
+          initialSelectedId={selectedCategoryId}
+          onPrevious={history.length > 0 ? handlePrevious : undefined}
+        />
+      ) : null}
+
+      {phase === "category_service" ? (
+        <CategoryServiceStep
+          categoryLabel={selectedCategoryLabel ?? ""}
+          services={categoryServices}
+          onNext={handleCategoryServiceNext}
+          onOtherNext={(description) => void handleCategoryOtherNext(description)}
+          analyzing={analyzingOther}
+          // Guarded (not a bare `selectedServiceId`) because that id could
+          // belong to a *different* category's service picked on
+          // `SearchMatchStep` after an "אחר" reclassification landed on a
+          // different category than this one - restoring it here would
+          // silently pre-select nothing visible while still counting as
+          // "selected" for `canContinue`.
+          initialSelectedId={categoryServices.some((service) => service.id === selectedServiceId) ? selectedServiceId : null}
+          initialOtherText={categoryOtherText}
+          onPrevious={history.length > 0 ? handlePrevious : undefined}
+        />
+      ) : null}
+
+      {phase === "service_confirm" && selectedService ? (
+        <ServiceConfirmStep
+          categoryLabel={selectedCategoryLabel ?? ""}
+          service={selectedService}
+          onNext={handleServiceConfirmNext}
           onPrevious={history.length > 0 ? handlePrevious : undefined}
         />
       ) : null}
@@ -909,11 +1405,19 @@ export function BookingFlowSheet({ open, query, onClose }: BookingFlowSheetProps
       {phase === "match" ? (
         <SearchMatchStep
           query={resolvedQuery}
-          categoryLabel={categoryLabel}
+          categoryLabel={matchSource === "categoryOther" && !matchedCategoryDiffersFromSelection ? null : categoryLabel}
           services={services}
           onNext={handleNext}
           initialSelectedId={selectedServiceId}
           onPrevious={history.length > 0 ? handlePrevious : undefined}
+          headingOverride={
+            matchSource === "categoryOther"
+              ? { heading: COPY.bookingFlow.categoryService.requestedServiceHeading, text: resolvedQuery }
+              : undefined
+          }
+          professionLabelOverride={
+            matchSource === "categoryOther" ? COPY.bookingFlow.categoryService.differentProfessionHeading : undefined
+          }
         />
       ) : null}
     </BottomSheet>

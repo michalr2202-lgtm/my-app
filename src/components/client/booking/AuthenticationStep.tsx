@@ -21,6 +21,16 @@ export interface AuthenticationStepProps {
   onVerifyCode: (code: string) => Promise<string | null>;
   /** Omit on the first screen shown in a path; see BookingFlowSheet's history stack. */
   onPrevious?: () => void;
+  /**
+   * Override the booking-flow-specific heading/subheading (added
+   * 2026-09-28 for `LoginSheet`'s standalone "log in to see your existing
+   * orders on this device" use, which isn't part of placing an order -
+   * `COPY.bookingFlow.authentication.subheading`'s wording ("...ובעל
+   * המקצוע יוכל ליצור איתך קשר") doesn't fit there). Defaults to the
+   * booking copy, so every existing caller is unaffected.
+   */
+  heading?: string;
+  subheading?: string;
 }
 
 /**
@@ -43,7 +53,13 @@ export interface AuthenticationStepProps {
  * design-system primitives (`Input`, `BookingStepFooter`, the step heading/
  * subheading pattern) pending the real visual pass.
  */
-export function AuthenticationStep({ onSendCode, onVerifyCode, onPrevious }: AuthenticationStepProps) {
+export function AuthenticationStep({
+  onSendCode,
+  onVerifyCode,
+  onPrevious,
+  heading = COPY.bookingFlow.authentication.heading,
+  subheading = COPY.bookingFlow.authentication.subheading,
+}: AuthenticationStepProps) {
   const [phone, setPhone] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
@@ -104,10 +120,8 @@ export function AuthenticationStep({ onSendCode, onVerifyCode, onPrevious }: Aut
     <div className="flex w-full flex-col gap-10">
       <div className="flex w-full flex-col gap-4">
         <div className="flex w-full flex-col gap-2 text-right text-text-secondary">
-          <p className="w-full text-lg font-semibold leading-[1.4]">
-            {COPY.bookingFlow.authentication.heading}
-          </p>
-          <p className="w-full text-sm leading-[1.4]">{COPY.bookingFlow.authentication.subheading}</p>
+          <p className="w-full text-lg font-semibold leading-[1.4]">{heading}</p>
+          <p className="w-full text-sm leading-[1.4]">{subheading}</p>
         </div>
 
         <Input

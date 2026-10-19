@@ -1,45 +1,38 @@
-import { supabase } from "@/lib/supabase";
-import type { ActiveJob, JobStatus } from "@/lib/types";
-
-const INACTIVE_STATUSES: JobStatus[] = ["completed", "cancelled"];
-
-interface ActiveJobRow {
-  id: string;
-  status: JobStatus;
-  scheduled_time: string;
-  service: {
-    label_he: string;
-    price_min: number;
-    price_max: number;
-    category: { name_en: string; label_he: string } | null;
-  } | null;
-  job_assignments: {
-    professional: {
-      user: { first_name: string; last_name: string } | null;
-    } | null;
-  }[];
-}
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ActiveJob } from "@/lib/types";
+import { ACTIVE_NOW_STATUSES, JOB_SELECT_FRAGMENT, mapJobRowToActiveJob, type JobRow } from "@/lib/queries/jobRow";
 
 /**
  * Fetches the customer's current active job (if any), per
- * /docs/home-screen-prd.md 3.1 / 4 (State B): a job is "active" while its
- * status is not `completed` or `cancelled`.
+ * /docs/home-screen-prd.md 3.1 / 4 (State B) - corrected 2026-09-08: a job
+ * is "active" only while it's truly in flight (see `ACTIVE_NOW_STATUSES`'s
+ * doc comment), not merely "not completed/cancelled" as an earlier version
+ * of both this function and that PRD section said - a real, customer-
+ * confirmed bug fix (a `searching_professional`/`pending_approval` job was
+ * incorrectly showing here instead of falling back to State A).
  *
  * Returns null when there is no customerId (no session yet - see
  * lib/auth.ts) or no active job, so the screen renders State A.
+ *
+ * Takes the caller's Supabase client (2026-09-08, was previously the
+ * `src/lib/supabase.ts` browser singleton, imported directly) - that
+ * singleton carries no session when this runs server-side, so the `jobs`
+ * RLS policy ("Customers can view their own jobs") would silently return
+ * zero rows regardless of `customerId`. Callers must pass a client that's
+ * actually authenticated as that customer - `createSupabaseServerClient()`
+ * from a Server Component, per `src/app/page.tsx`.
  */
-export async function fetchActiveJob(customerId: string | null): Promise<ActiveJob | null> {
+export async function fetchActiveJob(
+  supabase: SupabaseClient,
+  customerId: string | null
+): Promise<ActiveJob | null> {
   if (!customerId) return null;
 
   const { data, error } = await supabase
     .from("jobs")
-    .select(
-      `id, status, scheduled_time,
-       service:services(label_he, price_min, price_max, category:categories(name_en, label_he)),
-       job_assignments(professional:professionals(user:users(first_name, last_name)))`
-    )
+    .select(JOB_SELECT_FRAGMENT)
     .eq("customer_id", customerId)
-    .not("status", "in", `(${INACTIVE_STATUSES.join(",")})`)
+    .in("status", ACTIVE_NOW_STATUSES)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -51,21 +44,5 @@ export async function fetchActiveJob(customerId: string | null): Promise<ActiveJ
 
   if (!data) return null;
 
-  const row = data as unknown as ActiveJobRow;
-  const assignment = row.job_assignments?.[0];
-  const professionalUser = assignment?.professional?.user;
-
-  return {
-    id: row.id,
-    status: row.status,
-    scheduledTime: row.scheduled_time,
-    professionalName: professionalUser
-      ? `${professionalUser.first_name} ${professionalUser.last_name}`.trim()
-      : "",
-    categoryLabel: row.service?.category?.label_he ?? "",
-    categoryColorKey: row.service?.category?.name_en ?? "",
-    serviceLabel: row.service?.label_he ?? "",
-    priceMin: row.service?.price_min ?? 0,
-    priceMax: row.service?.price_max ?? 0,
-  };
+  return mapJobRowToActiveJob(data as unknown as JobRow);
 }

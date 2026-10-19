@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UrgentNotification } from "@/lib/types";
 
 /**
@@ -7,8 +7,16 @@ import type { UrgentNotification } from "@/lib/types";
  * Returns null when there is no job (no active job -> no banner tied to
  * it) or no urgent/critical job_update exists, so the screen renders
  * State C.
+ *
+ * Takes the caller's Supabase client (2026-09-08, same reasoning as
+ * `fetchActiveJob`) - `job_updates` rows belong to a specific customer's
+ * job, so this needs to run authenticated as that customer for RLS to
+ * return anything, not the anonymous browser singleton.
  */
-export async function fetchUrgentNotification(jobId: string | null): Promise<UrgentNotification | null> {
+export async function fetchUrgentNotification(
+  supabase: SupabaseClient,
+  jobId: string | null
+): Promise<UrgentNotification | null> {
   if (!jobId) return null;
 
   const { data, error } = await supabase

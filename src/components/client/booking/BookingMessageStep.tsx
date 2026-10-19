@@ -22,7 +22,14 @@ export interface BookingMessageStepProps {
    * client-booking-flow-prd.md's Match Outcomes table. "noPriceYet" is not
    * a dead end - the category matched, so this continues the booking flow
    * (no separate "back home" affordance; the sheet's own close (X) button
-   * covers that, consistent with every other step). "noSlotsForDate" also
+   * covers that, consistent with every other step). Reused as-is (no
+   * separate "categoryNoPriceYet" variant - one existed briefly 2026-09-06
+   * and was removed the same day) for the Time Pill entry's "אחר" field
+   * too: that field always runs the exact same AI classification as
+   * search does (see `CategoryServiceStep`/`BookingFlowSheet`'s
+   * `handleCategoryOtherNext`), so "זיהינו ש..." stays accurate regardless
+   * of entry point - there's no "the customer picked this directly, not
+   * inferred" case left to word differently. "noSlotsForDate" also
    * continues the flow - its CTA goes back to the date screen, which is
    * why this kind is rendered without `onPrevious`: a second button doing
    * the exact same thing would be redundant. "jobCreated" is the

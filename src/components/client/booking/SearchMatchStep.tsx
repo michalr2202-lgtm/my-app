@@ -5,6 +5,7 @@ import { BookingStepFooter } from "@/components/client/booking/BookingStepFooter
 import { SelectableServicePill } from "@/components/client/booking/SelectableServicePill";
 import { COPY } from "@/lib/copy";
 import { NO_MATCH_OPTION_ID } from "@/lib/ai/matchTypes";
+import { formatServicePriceLine } from "@/lib/servicePricing";
 
 export interface SearchMatchServiceOption {
   id: string;
@@ -24,20 +25,33 @@ export interface SearchMatchStepProps {
   initialSelectedId?: string | null;
   /** Omit on the first screen shown in a path; see BookingFlowSheet's history stack. */
   onPrevious?: () => void;
-}
-
-function formatPriceLine(service: SearchMatchServiceOption): string {
-  if (service.pricing_type === "diagnosis") {
-    return COPY.bookingFlow.searchMatch.priceAfterInspection;
-  }
-  return COPY.bookingFlow.searchMatch.priceRange
-    .replace("{min}", String(service.price_min))
-    .replace("{max}", String(service.price_max));
+  /**
+   * Replaces the default `understoodHeading`/`youWrote` pair (added
+   * 2026-09-06) - used only when this screen is reached from
+   * `CategoryServiceStep`'s "אחר" field instead of the search box: `text`
+   * is the customer's raw typed description shown as-is, not wrapped in
+   * `youWrote`'s "כתבת: '...'" quoting (they already know what they
+   * typed - no need to quote it back). Omit for the normal search entry.
+   */
+  headingOverride?: { heading: string; text: string };
+  /**
+   * Replaces `matchingProfessionLabel`'s wording only (same path as
+   * above) - still shown only when `categoryLabel` is non-null. Omit for
+   * the normal search entry.
+   */
+  professionLabelOverride?: string;
 }
 
 /**
  * First booking step after SearchBar AI match (Figma OrderBottomSheet_SearchBar).
  * Selecting any pill (including "אין התאמה") enables Next; Next advances the flow.
+ *
+ * Reused as-is (added 2026-09-06) for the Time Pill entry's
+ * `CategoryServiceStep` "אחר" field - see `headingOverride`/
+ * `professionLabelOverride` above and `BookingFlowSheet`'s
+ * `handleCategoryOtherNext`. That path runs the exact same AI
+ * classification this screen already expects, so no other prop changes
+ * are needed to support it.
  */
 export function SearchMatchStep({
   query,
@@ -46,6 +60,8 @@ export function SearchMatchStep({
   onNext,
   initialSelectedId = null,
   onPrevious,
+  headingOverride,
+  professionLabelOverride,
 }: SearchMatchStepProps) {
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const selectedService = services.find((service) => service.id === selectedId) ?? null;
@@ -61,17 +77,17 @@ export function SearchMatchStep({
       <div className="flex w-full flex-col gap-6">
         <div className="flex w-full flex-col gap-2 text-right text-text-secondary">
           <p className="w-full text-lg font-semibold leading-[1.4]">
-            {COPY.bookingFlow.searchMatch.understoodHeading}
+            {headingOverride?.heading ?? COPY.bookingFlow.searchMatch.understoodHeading}
           </p>
           <p className="w-full text-sm leading-[1.4]">
-            {COPY.bookingFlow.searchMatch.youWrote.replace("{query}", query)}
+            {headingOverride?.text ?? COPY.bookingFlow.searchMatch.youWrote.replace("{query}", query)}
           </p>
         </div>
 
         {categoryLabel ? (
           <div className="flex w-full flex-col gap-2 text-right text-text-secondary">
             <p className="w-full text-lg font-semibold leading-[1.4]">
-              {COPY.bookingFlow.searchMatch.matchingProfessionLabel}
+              {professionLabelOverride ?? COPY.bookingFlow.searchMatch.matchingProfessionLabel}
             </p>
             <p className="w-full text-sm leading-[1.4]">{categoryLabel}</p>
           </div>
@@ -98,7 +114,7 @@ export function SearchMatchStep({
           </div>
           {selectedService ? (
             <p className="w-full text-right text-sm leading-[1.4] text-text-secondary">
-              {formatPriceLine(selectedService)}
+              {formatServicePriceLine(selectedService)}
             </p>
           ) : null}
         </div>

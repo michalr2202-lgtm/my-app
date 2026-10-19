@@ -30,3 +30,35 @@ const JOB_STATUS_LABEL: Record<JobStatus, string> = {
 export function getJobStatusLabel(status: JobStatus): string {
   return JOB_STATUS_LABEL[status] ?? status;
 }
+
+/**
+ * Status -> Orders-screen-bucket mapping. Single source of truth (moved
+ * here 2026-09-28 from `src/lib/queries/orders.ts`, which now imports
+ * these back) - both the query layer (which bucket a job's row query
+ * belongs to) and `getContextualStatusLabel` below (which label a status
+ * gets) must agree on this mapping, so it lives in exactly one place
+ * rather than as two hand-kept-in-sync copies.
+ */
+export const UPCOMING_STATUSES: JobStatus[] = ["confirmed", "pending_approval", "rescheduled"];
+export const PENDING_STATUSES: JobStatus[] = ["searching_professional"];
+export const HISTORY_STATUSES: JobStatus[] = ["completed", "cancelled", "incomplete_work"];
+
+/**
+ * Contextual status label (added 2026-09-28 for `JobDetailsScreen`, then
+ * adopted by `OrdersScreen` too, replacing its inline per-bucket
+ * ternaries): unlike `getJobStatusLabel`'s generic `jobStatus.*` wording,
+ * this returns the same bucket-contextual copy the Orders screen already
+ * shows for these statuses (`ordersScreen.*`, see `copy-deck.md`) - e.g.
+ * "בחיפוש בעל מקצוע" instead of the generic "מחפש בעל מקצוע" - derived
+ * purely from `status` (not from "which array is this job currently sitting
+ * in"), so it works for any single job in isolation (Job Details has no
+ * bucket to look at). Falls back to `getJobStatusLabel` for every status
+ * outside these 3 groups (the in-flight statuses shown on the Home
+ * Screen's Active Job Card, which have no Orders-screen bucket at all).
+ */
+export function getContextualStatusLabel(status: JobStatus): string {
+  if (PENDING_STATUSES.includes(status)) return COPY.ordersScreen.pendingStatusLabel;
+  if (UPCOMING_STATUSES.includes(status)) return COPY.ordersScreen.upcomingStatusLabel;
+  if (status === "completed") return COPY.ordersScreen.historyCompletedStatusLabel;
+  return getJobStatusLabel(status);
+}
